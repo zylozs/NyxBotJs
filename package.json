@@ -20,6 +20,7 @@
   "dependencies": {
     "discord.js": "^11.2.1",
     "node-opus": "^0.2.7",
-    "reflect-metadata": "^0.1.10"
+    "reflect-metadata": "^0.1.10",
+    "winston": "^2.4.0"
   }
 }
