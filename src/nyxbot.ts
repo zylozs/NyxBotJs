@@ -3,20 +3,37 @@ import 'reflect-metadata';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Message } from 'discord.js';
 import { Logger, LoggingEnabled } from './utils/loggerutils';
+import { BotCommands } from './bot/botcommands';
+import { CommandsAPI } from './utils/commandutils';
 
 const BotConfig = require('./config.json');
 const { ClientEvent } = EventListenerUtils;
 
-class NyxBot extends Discord.Client implements EventListener, LoggingEnabled
+export interface BotAPI
 {
-    Logger:Logger;
+
+}
+
+class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEnabled
+{
+    public Logger:Logger;
+
+    private m_BotCommands:CommandsAPI;
 
     public constructor()
     {
         super();
         this.Logger = new Logger('NyxBot');
+        this.m_BotCommands = new BotCommands();
 
         EventListenerUtils.RegisterEventListeners(this);
+    }
+
+    public async RequestShutdown():Promise<void>
+    {
+        this.m_BotCommands.Shutdown();
+        this.destroy();
+        process.exit(0);
     }
 
     @ClientEvent('ready')
@@ -26,7 +43,7 @@ class NyxBot extends Discord.Client implements EventListener, LoggingEnabled
     }
 
     @ClientEvent('message')
-    protected HandleMessage(message:Message):void
+    protected async HandleMessage(message:Message):Promise<void>
     {
         if (message.content === 'ping')
         {
@@ -35,8 +52,7 @@ class NyxBot extends Discord.Client implements EventListener, LoggingEnabled
         }
         else if (message.content === 'shutdown')
         {
-            this.destroy();
-            process.exit(0);
+            await this.RequestShutdown();
         }
     }
 };

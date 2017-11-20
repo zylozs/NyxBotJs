@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "discord.js": "^11.2.1",
+    "get-parameter-names": "^0.3.0",
     "node-opus": "^0.2.7",
     "reflect-metadata": "^0.1.10",
     "winston": "^2.4.0"
