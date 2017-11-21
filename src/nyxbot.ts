@@ -2,12 +2,19 @@ import * as Discord from 'discord.js';
 import 'reflect-metadata';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Message } from 'discord.js';
-import { Logger, LoggingEnabled } from './utils/loggerutils';
+import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
-import { CommandsAPI } from './utils/commandutils';
+import { CommandAPI } from './command/command';
 
 const BotConfig = require('./config.json');
 const { ClientEvent } = EventListenerUtils;
+const commandLineArgs = require('command-line-args');
+
+const optionDefinitions = [
+    { name: 'verbose', alias: 'v', type:Boolean }
+];
+
+const options = commandLineArgs(optionDefinitions);
 
 export interface BotAPI
 {
@@ -18,13 +25,14 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
 {
     public Logger:Logger;
 
-    private m_BotCommands:CommandsAPI;
+    private m_BotCommands:CommandAPI;
 
     public constructor()
     {
         super();
         this.Logger = new Logger('NyxBot');
         this.m_BotCommands = new BotCommands();
+        this.Logger.Verbose('Constructor');
 
         EventListenerUtils.RegisterEventListeners(this);
     }
@@ -57,5 +65,6 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
     }
 };
 
+LoggerUtils.SetVerboseLogging(options.verbose != undefined ? options.verbose : false);
 let bot:NyxBot = new NyxBot();
 bot.login(BotConfig.token);

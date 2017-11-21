@@ -4,12 +4,14 @@ const nyxBotCustomLevels = {
     levels: {
         Error: 0,
         Warning: 1,
-        Debug: 2
+        Debug: 2,
+        Verbose: 3
     },
     colors: {
         Error: 'red',
         Warning: 'yellow',
-        Debug: 'grey'
+        Debug: 'white',
+        Verbose: 'grey'
     }
 }
 
@@ -43,6 +45,11 @@ export class Logger
         LoggerUtils.CreateLoggerInstance();
     }
 
+    public Verbose(...args:any[]):void
+    {
+        LoggerUtils.GetLoggerInstance().Verbose(args.join(' '), { context:this.m_Context });
+    }
+
     public Debug(...args:any[]):void
     {
         LoggerUtils.GetLoggerInstance().Debug(args.join(' '), { context:this.m_Context });
@@ -62,6 +69,15 @@ export class Logger
 export class LoggerUtils
 {
     private static m_Logger:any = null;
+    // Defaulted to on so that things like decorators can always successfully log. This value gets overriden based on the command line arguments.
+    private static m_VerboseLogging:boolean = true;
+
+    public static GetVerboseLogging() { return this.m_VerboseLogging; }
+    public static SetVerboseLogging(value:boolean) 
+    { 
+        this.m_VerboseLogging = value;
+        this.m_Logger.transports.log.level = value ? 'Verbose' : 'Debug';
+    }
 
     public static CreateLoggerInstance():void
     {
@@ -84,7 +100,7 @@ export class LoggerUtils
                 new (winston.transports.File)({
                     name: 'log',
                     filename: 'dist/nyxbot.log',
-                    level: 'Debug',
+                    level: this.m_VerboseLogging ? 'Verbose' : 'Debug',
                     json: false,
                     formatter: LoggerUtils.LogFormatter
                 })

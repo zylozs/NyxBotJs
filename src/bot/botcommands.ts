@@ -1,10 +1,11 @@
 import { Message } from 'discord.js';
-import { CommandsAPI, Command, VoiceEventHandler, CommandRegistry, ParamParserType, CommandUtils } from "../utils/commandutils";
+import { CommandUtils } from "../utils/commandutils";
+import { CommandAPI, Command, VoiceEventHandler, CommandRegistry, ParamParserType } from '../command/command';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { BotAPI } from '../nyxbot';
-import { PluginCommand } from '../decorators/commanddecorator';
+import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
 
-export class BotCommands implements CommandsAPI, VoiceEventHandler, LoggingEnabled
+export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnabled
 {
     public Logger:Logger;
     public m_Bot:BotAPI;
@@ -63,5 +64,25 @@ export class BotCommands implements CommandsAPI, VoiceEventHandler, LoggingEnabl
         ihateyou;
         unused;
         variables;
+    }
+
+    @BotCommand('Bots sounds like beep boop', {name:'bots'})
+    public async BotCommand(bots:number, arepretty:string, dope:any):Promise<void>
+    {
+        // So the compiler stops yelling at me...
+        bots;
+        arepretty;
+        dope;
+    }
+
+    @Usage(`This is my documentation... WEEEEEEEEEEEEEEEEEEEEE 
+            line testtttt.. idk if this will work tho...
+            LOOKS LIKE IT DOES... BUT WITH NO AUTOMATIC NEW LINES :(
+            jk, it works. also caps are dumb`
+    )
+    @BotCommand('wooo')
+    public async UsageTest():Promise<void>
+    {
+
     }
 }

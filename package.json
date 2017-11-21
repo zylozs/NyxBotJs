@@ -18,6 +18,7 @@
     "typescript": "^2.6.1"
   },
   "dependencies": {
+    "command-line-args": "^4.0.7",
     "discord.js": "^11.2.1",
     "get-parameter-names": "^0.3.0",
     "node-opus": "^0.2.7",
