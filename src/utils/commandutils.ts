@@ -7,15 +7,18 @@ export class CommandUtils
 {
     public static COMMAND_REGISTRY_KEY:string = 'commandregistry';
 
-    public static ParamParserSpaces(...args:string[]):string[]
+    public static ParamParserSpaces(args:string):string[]
     {
-        // TODO: implement
-        return args;
+        const splitArgs:string[] = args.split(' ');
+        if (splitArgs.length == 1 && splitArgs[0] === '')
+            return [];
+
+        return splitArgs;
     }
 
-    public static ParamParserAll(...args:string[]):string[]
+    public static ParamParserAll(args:string):string[]
     {
-        return args;
+        return [args];
     }
 
     public static RegisterCommandMetaData(description:string, target:any, key:string, args?:CommandInfo):void

@@ -1,9 +1,10 @@
 import { Message } from 'discord.js';
 import { CommandUtils } from "../utils/commandutils";
-import { CommandAPI, Command, VoiceEventHandler, CommandRegistry, ParamParserType } from '../command/command';
+import { CommandAPI, Command, VoiceEventHandler, CommandRegistry, ParamParserType, ExecuteCommandResult } from '../command/command';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
-import { BotAPI } from '../nyxbot';
+import { BotAPI, MessageInfo } from '../nyxbot';
 import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
+import { ParsedCommandInfo } from '../utils/inputparserutils';
 
 export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnabled
 {
@@ -31,9 +32,13 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
         this.m_DefaultParserType = ParamParserType.SPACES;
     }
 
-    public async ExecuteCommand():Promise<void>
+    public async TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<ExecuteCommandResult>
     {
-
+        // TODO: implement
+        // So the compiler stops yelling at me...
+        messageInfo;
+        parsedCommand;
+        return ExecuteCommandResult.SUCCESS;
     }
 
     public async ReadMessage(message:Message):Promise<void>

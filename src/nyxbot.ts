@@ -1,10 +1,10 @@
 import * as Discord from 'discord.js';
 import 'reflect-metadata';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
-import { Message } from 'discord.js';
 import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
-import { CommandAPI } from './command/command';
+import { CommandAPI, ExecuteCommandResult } from './command/command';
+import { ParsedCommandInfo, InputParserUtils } from './utils/inputparserutils';
 
 const BotConfig = require('./config.json');
 const { ClientEvent } = EventListenerUtils;
@@ -20,6 +20,16 @@ export interface BotAPI
 {
 
 }
+
+// Message wrapper
+export type MessageInfo = 
+{
+    Server:Discord.Guild;
+    Channel:Discord.TextChannel | Discord.DMChannel | Discord.GroupDMChannel;
+    Author:Discord.User;
+    RawContent:string;
+    CleanContent:string;
+};
 
 class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEnabled
 {
@@ -51,17 +61,46 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
     }
 
     @ClientEvent('message')
-    protected async HandleMessage(message:Message):Promise<void>
+    protected async HandleMessage(message:Discord.Message):Promise<void>
     {
-        if (message.content === 'ping')
-        {
-            message.reply('pong');
-            this.Logger.Debug('pong');
-        }
-        else if (message.content === 'shutdown')
+        if (message.author == this.user || message.system)
+            return;
+
+        // So we can shutdown the bot while developing the command parsing...
+        if (message.content === 'shutdown')
         {
             await this.RequestShutdown();
         }
+
+        this.TryExecuteCommand(message);
+    }
+
+    private TryExecuteCommand(message:Discord.Message):ExecuteCommandResult
+    {
+        const messageWrapper:MessageInfo = 
+        { 
+            Server:message.guild, 
+            Channel:message.channel, 
+            Author:message.author, 
+            RawContent:message.content, 
+            CleanContent:message.cleanContent 
+        };
+
+        const parsedCommand:any = InputParserUtils.ParseTextForCommandInfo(message.content);
+
+        if (parsedCommand == null)
+        {
+            this.Logger.Debug('Command failed to execute because it isn\'t a valid command');
+            this.Logger.Verbose(`Failed command: ${message.content}`)
+            return ExecuteCommandResult.FAILURE;
+        }
+
+        if (this.m_BotCommands.TryExecuteCommand(messageWrapper, <ParsedCommandInfo>parsedCommand))
+        {
+
+        }
+
+        return ExecuteCommandResult.FAILURE;
     }
 };
 

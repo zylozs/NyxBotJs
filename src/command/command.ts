@@ -1,6 +1,7 @@
 import { Message } from 'discord.js';
 import { Logger } from '../utils/loggerutils'
-import { BotAPI } from '../nyxbot';
+import { BotAPI, MessageInfo } from '../nyxbot';
+import { ParsedCommandInfo } from '../utils/inputparserutils';
 
 // Aliases
 export type Tag = string;
@@ -27,6 +28,12 @@ export enum ParamParserType
     CUSTOM
 }
 
+export enum ExecuteCommandResult
+{
+    SUCCESS,
+    FAILURE
+}
+
 export interface CommandAPI
 {
     m_Bot:BotAPI;
@@ -39,7 +46,7 @@ export interface CommandAPI
 
     // Async Functions
     Initialize(bot:BotAPI, parentContext?:Logger):Promise<void>;
-    ExecuteCommand():Promise<void>;
+    TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<ExecuteCommandResult>;
     ReadMessage(message:Message):Promise<void>;
     Shutdown():Promise<void>
 }
