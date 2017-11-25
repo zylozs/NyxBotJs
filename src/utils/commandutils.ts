@@ -1,5 +1,5 @@
 import { CommandInfo } from "../command/commanddecorator";
-import { Command, CommandMetaData, ParamParserType } from "../command/command";
+import { Command, CommandMetaData, ParamParserType, CommandRegistry, CommandAPI } from "../command/command";
 import { Logger } from '../utils/loggerutils';
 const GetParameterNames = require('get-parameter-names');
 
@@ -76,5 +76,25 @@ export class CommandUtils
 
         commandRegistry.push(temp);
         Reflect.defineMetadata(CommandUtils.COMMAND_REGISTRY_KEY, commandRegistry, target);
+    }
+
+    public static LoadCommandRegistry(target:CommandAPI):void
+    {
+        let registry:CommandRegistry = new Map();
+        let metaData:CommandMetaData[] = Reflect.getMetadata(CommandUtils.COMMAND_REGISTRY_KEY, <any>target) || [];
+
+        for (let data of metaData)
+        {
+            if (registry.has(data.CommandName))
+            {
+                (<CommandMetaData[]>registry.get(data.CommandName)).push(data);
+            }
+            else
+            {
+                registry.set(data.CommandName, [data]);
+            }
+        }
+
+        target.m_CommandRegistry = registry;
     }
 }

@@ -1,6 +1,6 @@
 import { Message } from 'discord.js';
 import { CommandUtils } from "../utils/commandutils";
-import { CommandAPI, Command, VoiceEventHandler, CommandRegistry, ParamParserType, ExecuteCommandResult } from '../command/command';
+import { CommandAPI, Command, VoiceEventHandler, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandErrorCode, Tag } from '../command/command';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { BotAPI, MessageInfo } from '../nyxbot';
 import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
@@ -10,6 +10,7 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
 {
     public Logger:Logger;
     public m_Bot:BotAPI;
+    public m_Tag:Tag;
     public m_CommandRegistry:CommandRegistry;
     public m_DefaultParser:Function;
     public m_DefaultParserType:ParamParserType;
@@ -28,17 +29,25 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
     {
         this.Logger = new Logger('BotCommands', parentContext);
         this.m_Bot = bot;
+        this.m_Tag = 'bot';
         this.m_DefaultParser = CommandUtils.ParamParserSpaces;
         this.m_DefaultParserType = ParamParserType.SPACES;
+
+        CommandUtils.LoadCommandRegistry(this);
     }
 
-    public async TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<ExecuteCommandResult>
+    public async TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>
     {
         // TODO: implement
         // So the compiler stops yelling at me...
         messageInfo;
         parsedCommand;
-        return ExecuteCommandResult.SUCCESS;
+
+        // TEMP FOR TESTING
+        if (parsedCommand.Tag === 'shutdown')
+            await this._Shutdown_();
+
+        return [ExecuteCommandResult.CONTINUE, CommandErrorCode.SUCCESS];
     }
 
     public async ReadMessage(message:Message):Promise<void>
@@ -89,5 +98,17 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
     public async UsageTest():Promise<void>
     {
 
+    }
+
+    @Usage(
+       `Shuts down the bot. This can only be done by an admin.
+        \`!shutdown\`
+        **Example:** \`!shutdown\``
+    )
+    @BotCommand('Shutdown the bot (requires server admin permission)', { name:'shutdown' })
+    private async _Shutdown_():Promise<void>
+    {
+        // TODO: test for admin permission
+        await this.m_Bot.RequestShutdown();
     }
 }

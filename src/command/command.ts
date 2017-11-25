@@ -30,13 +30,24 @@ export enum ParamParserType
 
 export enum ExecuteCommandResult
 {
-    SUCCESS,
-    FAILURE
+    CONTINUE = 0,
+    STOP
+}
+
+export enum CommandErrorCode
+{
+    SUCCESS = 0,
+    INCORRECT_BOT_COMMAND_USAGE,
+    UNRECOGNIZED_BOT_COMMAND,
+    INCORRECT_PLUGIN_COMMAND_USAGE,
+    UNRECOGNIZED_PLUGIN_COMMAND,
+    PLUGIN_DISABLED
 }
 
 export interface CommandAPI
 {
     m_Bot:BotAPI;
+    m_Tag:Tag;
     m_CommandRegistry:CommandRegistry;
     m_DefaultParser:Function;
     m_DefaultParserType:ParamParserType;
@@ -46,7 +57,7 @@ export interface CommandAPI
 
     // Async Functions
     Initialize(bot:BotAPI, parentContext?:Logger):Promise<void>;
-    TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<ExecuteCommandResult>;
+    TryExecuteCommand(messageInfo: MessageInfo, parsedCommand: ParsedCommandInfo): Promise<[ExecuteCommandResult, CommandErrorCode]>;
     ReadMessage(message:Message):Promise<void>;
     Shutdown():Promise<void>
 }
