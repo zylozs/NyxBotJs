@@ -23,12 +23,22 @@ export class CommandUtils
 
     public static RegisterCommandMetaData(description:string, target:any, key:string, args?:CommandInfo):void
     {
-        let commandRegistry:CommandMetaData[] = Reflect.getMetadata(CommandUtils.COMMAND_REGISTRY_KEY, target) || [];
+        const commandRegistry:CommandMetaData[] = Reflect.getMetadata(CommandUtils.COMMAND_REGISTRY_KEY, target) || [];
         const params:string[] = GetParameterNames(target[key]);
         let commandName:Command = key;
         let overrideDefaultParser:boolean = false;
         let paramParser:Function = CommandUtils.ParamParserSpaces;
         let paramParserType:ParamParserType = ParamParserType.SPACES;
+        let logger:Logger = new Logger('Command Decorator');
+
+        if (params.length == 0)
+            logger.Error(`Improper command function ${key}. Command functions cannot have 0 parameters`);
+
+        // Strip out the message info from params
+        if (params[0].toLowerCase() === 'messageinfo')
+            params.shift();
+        else
+            logger.Error(`Improper command function ${key}. Command functions must have their first parameter be "messageinfo". This parameter is not case sensitive.`);
 
         if (args != undefined)
         {
@@ -71,7 +81,6 @@ export class CommandUtils
             Usage:'' // Will be added with a separate decorator for ease of reading
         };
 
-        let logger:Logger = new Logger('Command Decorator');
         logger.Verbose(JSON.stringify(temp));
 
         commandRegistry.push(temp);
@@ -96,5 +105,38 @@ export class CommandUtils
         }
 
         target.m_CommandRegistry = registry;
+
+        let logger:Logger = new Logger(`Load Command Registry ${target.m_Tag}`);
+        logger.Verbose(JSON.stringify([...registry]));
+    }
+
+    public static GetParamParserAndTypeFromRegistry(commandRegistry:CommandRegistry, command:Command):[ParamParserType, Function] | undefined
+    {
+        if (!commandRegistry.has(command))
+        {
+            let logger: Logger = new Logger(`Get Param Parser And Type From Registry`);
+            logger.Error(`Failed to get param parser and type from registry because ${command} does not exist in registry.`);
+            return undefined;
+        }
+
+        let metaData:CommandMetaData[] = <CommandMetaData[]>commandRegistry.get(command);
+        let parser:Function = function() {};
+        let parserType:ParamParserType = ParamParserType.SPACES;
+        let override:boolean = false;
+
+        for (let data of metaData)
+        {
+            if (data.OverrideDefaultParser)
+            {
+                override = true;
+                parser = data.ParamParser;
+                parserType = data.ParamParserType;
+            }
+        }
+
+        if (!override)
+            return undefined;
+
+        return [parserType, parser];
     }
 }

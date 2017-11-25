@@ -7,10 +7,8 @@
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "noImplicitThis": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "strictNullChecks": true,
-    "experimentalDecorators": true 
+    "experimentalDecorators": true
   },
   "exclude": [
     "node_modules"

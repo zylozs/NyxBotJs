@@ -4,7 +4,7 @@ import { CommandAPI, Command, VoiceEventHandler, CommandRegistry, ParamParserTyp
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { BotAPI, MessageInfo } from '../nyxbot';
 import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
-import { ParsedCommandInfo } from '../utils/inputparserutils';
+import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
 
 export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnabled
 {
@@ -38,16 +38,21 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
 
     public async TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>
     {
-        // TODO: implement
-        // So the compiler stops yelling at me...
-        messageInfo;
-        parsedCommand;
+        const parsedArgs:[string, string[]] | undefined = InputParserUtils.ParseCommandArgs(this.m_CommandRegistry, parsedCommand.Tag, parsedCommand.RawContent, this.m_DefaultParser, this.m_DefaultParserType, this.Logger);
+        if (parsedArgs == undefined)
+        {
+            return [ExecuteCommandResult.STOP, CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE];
+        }
 
-        // TEMP FOR TESTING
-        if (parsedCommand.Tag === 'shutdown')
-            await this._Shutdown_();
+        // Setup our args
+        let args:any[] = [];
+        args.push(messageInfo);
+        args.concat(parsedArgs[1]);
 
-        return [ExecuteCommandResult.CONTINUE, CommandErrorCode.SUCCESS];
+        // Call the command
+        (<any>this)[parsedArgs[0]].apply(this, args);
+
+        return [ExecuteCommandResult.STOP, CommandErrorCode.SUCCESS];
     }
 
     public async ReadMessage(message:Message):Promise<void>
@@ -72,21 +77,15 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
     }
 
     @PluginCommand('Test description', {name:'test'})
-    public async TestCommand(ihateyou:boolean, unused:number, variables?:string):Promise<void>
+    public async TestCommand(messageInfo:MessageInfo, ihateyou:boolean, unused:number, variables?:string):Promise<void>
     {
-        // So the compiler stops yelling at me...
-        ihateyou;
-        unused;
-        variables;
+        this.m_Bot.SendMessage(messageInfo.Channel, 'JOHN MADDEN');
     }
 
     @BotCommand('Bots sounds like beep boop', {name:'bots'})
-    public async BotCommand(bots:number, arepretty:string, dope:any):Promise<void>
+    public async BotCommand(messageInfo:MessageInfo, bots:number, arepretty:string, dope:any):Promise<void>
     {
-        // So the compiler stops yelling at me...
-        bots;
-        arepretty;
-        dope;
+        this.m_Bot.SendMessage(messageInfo.Channel, 'FOOTBALL');
     }
 
     @Usage(`This is my documentation... WEEEEEEEEEEEEEEEEEEEEE 
@@ -95,9 +94,9 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
             jk, it works. also caps are dumb`
     )
     @BotCommand('wooo')
-    public async UsageTest():Promise<void>
+    public async UsageTest(messageInfo:MessageInfo):Promise<void>
     {
-
+        this.m_Bot.SendMessage(messageInfo.Channel, 'usage?');
     }
 
     @Usage(
@@ -106,9 +105,8 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
         **Example:** \`!shutdown\``
     )
     @BotCommand('Shutdown the bot (requires server admin permission)', { name:'shutdown' })
-    private async _Shutdown_():Promise<void>
+    private async _Shutdown_(messageInfo:MessageInfo):Promise<void>
     {
-        // TODO: test for admin permission
         await this.m_Bot.RequestShutdown();
     }
 }

@@ -52,6 +52,8 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
 
     public async RequestShutdown():Promise<void>
     {
+        // TODO: test for admin permission
+
         this.m_BotCommands.Shutdown();
         this.destroy();
         process.exit(0);
@@ -63,6 +65,7 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
         this.m_BotCommands.Initialize(this, this.Logger);
 
         this.Logger.Debug('Ready');
+        console.log('Ready');
     }
 
     @ClientEvent('message')
@@ -86,7 +89,7 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
     {
         // TODO: add checks for things like message length
         this.Logger.Debug(message);
-        channel.sendMessage(message);
+        channel.send(message);
     }
 
     private async TryExecuteCommand(message:Discord.Message):Promise<[ExecuteCommandResult, CommandErrorCode]>
@@ -100,22 +103,22 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
             CleanContent:message.cleanContent 
         };
 
-        const parsedCommand:any = InputParserUtils.ParseTextForCommandInfo(message.content);
+        const parsedCommand:ParsedCommandInfo | undefined = InputParserUtils.ParseTextForCommandInfo(message.content, this.Logger);
 
-        if (parsedCommand == null)
+        if (parsedCommand == undefined)
         {
             this.Logger.Verbose(`Failed command: ${message.content}`)
             return [ExecuteCommandResult.STOP, CommandErrorCode.UNRECOGNIZED_BOT_COMMAND];
         }
 
-        const botResult:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecuteBotCommand(messageWrapper, <ParsedCommandInfo>parsedCommand);
-        this.DisplayError(message.channel, botResult[1], this.GetErrorContext(botResult[1], <ParsedCommandInfo>parsedCommand));
+        const botResult:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecuteBotCommand(messageWrapper, parsedCommand);
+        this.DisplayError(message.channel, botResult[1], this.GetErrorContext(botResult[1], parsedCommand));
 
         // It wasn't a bot command, so lets find out if we have a plugin command
         if (botResult[0] == ExecuteCommandResult.CONTINUE)
         {
-            const pluginResult:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecutePluginCommand(messageWrapper, <ParsedCommandInfo>parsedCommand);
-            this.DisplayError(message.channel, pluginResult[1], this.GetErrorContext(botResult[1], <ParsedCommandInfo>parsedCommand));
+            const pluginResult:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecutePluginCommand(messageWrapper, parsedCommand);
+            this.DisplayError(message.channel, pluginResult[1], this.GetErrorContext(botResult[1], parsedCommand));
         }
 
         return [ExecuteCommandResult.STOP, CommandErrorCode.SUCCESS];
@@ -139,9 +142,6 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
     private async TryExecutePluginCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>
     {
         // TODO: implement
-        // So the compiler stops yelling at me...
-        messageInfo;
-        parsedCommand;
 
         return [ExecuteCommandResult.STOP, CommandErrorCode.SUCCESS];
     }
@@ -178,7 +178,7 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
             if (context == undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
-            message = `Incorrect usage of command ${context.command}. Please see the usage to learn how to properly use this command.\nJust Type: \`!usage ${context.command}\``;
+            message = `Incorrect usage of command \`${context.command}\`. Please see the usage to learn how to properly use this command.\nJust Type: \`!usage ${context.command}\``;
             break;
         case CommandErrorCode.UNRECOGNIZED_BOT_COMMAND:
             message = `That is not a recognized command. For help, just type \`!help\``;

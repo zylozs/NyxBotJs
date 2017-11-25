@@ -1,1 +1,1 @@
-node dist/nyxbot.js
+node dist/nyxbot.js --verbose
