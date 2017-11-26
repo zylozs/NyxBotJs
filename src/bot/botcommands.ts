@@ -47,10 +47,10 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
         // Setup our args
         let args:any[] = [];
         args.push(messageInfo);
-        args.concat(parsedArgs[1]);
+        args = args.concat(parsedArgs[1]);
 
         // Call the command
-        (<any>this)[parsedArgs[0]].apply(this, args);
+        await (<any>this)[parsedArgs[0]].apply(this, args);
 
         return [ExecuteCommandResult.STOP, CommandErrorCode.SUCCESS];
     }
@@ -79,13 +79,19 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
     @PluginCommand('Test description', {name:'test'})
     public async TestCommand(messageInfo:MessageInfo, ihateyou:boolean, unused:number, variables?:string):Promise<void>
     {
-        this.m_Bot.SendMessage(messageInfo.Channel, 'JOHN MADDEN');
+        if (ihateyou == true)
+            await this.m_Bot.SendMessage(messageInfo.Channel, 'true?');
+
+        if (unused > 50)
+            await this.m_Bot.SendMessage(messageInfo.Channel, 'counting is hard');
+
+        await this.m_Bot.SendMessage(messageInfo.Channel, `Why are you saying ${<string>variables}?`);
     }
 
     @BotCommand('Bots sounds like beep boop', {name:'bots'})
     public async BotCommand(messageInfo:MessageInfo, bots:number, arepretty:string, dope:any):Promise<void>
     {
-        this.m_Bot.SendMessage(messageInfo.Channel, 'FOOTBALL');
+        await this.m_Bot.SendMessage(messageInfo.Channel, 'FOOTBALL');
     }
 
     @Usage(`This is my documentation... WEEEEEEEEEEEEEEEEEEEEE 
@@ -96,7 +102,7 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
     @BotCommand('wooo')
     public async UsageTest(messageInfo:MessageInfo):Promise<void>
     {
-        this.m_Bot.SendMessage(messageInfo.Channel, 'usage?');
+        await this.m_Bot.SendMessage(messageInfo.Channel, 'usage?');
     }
 
     @Usage(
@@ -104,7 +110,7 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
         \`!shutdown\`
         **Example:** \`!shutdown\``
     )
-    @BotCommand('Shutdown the bot (requires server admin permission)', { name:'shutdown' })
+    @BotCommand('Shutdown the bot (requires server admin permission)', { name:'exit' })
     private async _Shutdown_(messageInfo:MessageInfo):Promise<void>
     {
         await this.m_Bot.RequestShutdown();

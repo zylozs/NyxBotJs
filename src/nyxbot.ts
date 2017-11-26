@@ -107,8 +107,7 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
 
         if (parsedCommand == undefined)
         {
-            this.Logger.Verbose(`Failed command: ${message.content}`)
-            return [ExecuteCommandResult.STOP, CommandErrorCode.UNRECOGNIZED_BOT_COMMAND];
+            return [ExecuteCommandResult.STOP, CommandErrorCode.NOT_A_COMMAND];
         }
 
         const botResult:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecuteBotCommand(messageWrapper, parsedCommand);
