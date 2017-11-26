@@ -5,6 +5,7 @@ import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { BotAPI, MessageInfo, DiscordGuildMember } from '../nyxbot';
 import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
+import { HelpCommandUtils } from './utils/helpcommandutils';
 
 export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnabled
 {
@@ -75,13 +76,17 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
 
     }
 
+    ///////////////////////////////////////////////////////////
+    /// BOT COMMANDS
+    ///////////////////////////////////////////////////////////
+
     @Usage(
        `Changes the bot's server nickname to the name you provide.
         \`!changebotname <name>\`
         **Example:** \`!changebotname He-man, Master of the Universe\``
     )
     @BotCommand('Change the name of the bot to <name>', { name:'changebotname', paramParserType:ParamParserType.ALL })
-    public async _ChangeBotName_(messageInfo:MessageInfo, name:string):Promise<CommandErrorCode>
+    private async _ChangeBotName_(messageInfo:MessageInfo, name:string):Promise<CommandErrorCode>
     {
         let botMember:DiscordGuildMember = messageInfo.Server.me;
         try
@@ -97,11 +102,36 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
     }
 
     @Usage(
+       `Displays the basic howto message for the bot. This explains how to use commands.
+        \`!help\`
+        **Example:** \`!help\``
+    )
+    @BotCommand('Provides the basic help page', { name:'help' })
+    private async _Help_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    {
+        await HelpCommandUtils.GetHelp(this, this.m_Bot, messageInfo.Channel, '');
+        return CommandErrorCode.SUCCESS;
+    }
+
+    @Usage(
+       `Displays the help for the bot or a specific plugin. This shows the different commands available.
+        \`!help <pagename>\`
+        **Example for bot:** \`!help bot\`
+        **Example for plugin:** \`!help music\``
+    )
+    @BotCommand('Provides the help page for a specific part of the bot or its plugins', { name:'help' })
+    private async _HelpPage_(messageInfo:MessageInfo, pagename:string):Promise<CommandErrorCode>
+    {
+        await HelpCommandUtils.GetHelp(this, this.m_Bot, messageInfo.Channel, pagename);
+        return CommandErrorCode.SUCCESS;
+    }
+
+    @Usage(
        `Shuts down the bot. This can only be done by an admin.
         \`!shutdown\`
         **Example:** \`!shutdown\``
     )
-    @BotCommand('Shutdown the bot (requires server admin permission)', { name:'exit' })
+    @BotCommand('Shutdown the bot (requires server admin permission)', { name:'shutdown' })
     private async _Shutdown_(messageInfo:MessageInfo):Promise<CommandErrorCode>
     {
         await this.m_Bot.RequestShutdown();

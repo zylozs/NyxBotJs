@@ -14,7 +14,7 @@ export class InputParserUtils
 {
     public static ParseTextForCommandInfo(text:string, logContext?:Logger):ParsedCommandInfo | undefined 
     {
-        if (text.startsWith('!'))
+        if (text.startsWith(CommandUtils.GetCommandPrefix()))
         {
             let result:ParsedCommandInfo = { Tag:'', Command:'', Args:'', RawContent:'' };
             let temp:string[] = text.split(' ');

@@ -1,11 +1,15 @@
 import { CommandInfo } from "../command/commanddecorator";
-import { Command, CommandMetaData, ParamParserType, CommandRegistry, CommandAPI } from "../command/command";
+import { Command, CommandMetaData, ParamParserType, CommandRegistry, CommandAPI, Tag } from "../command/command";
 import { Logger } from '../utils/loggerutils';
 const GetParameterNames = require('get-parameter-names');
 
 export class CommandUtils
 {
+    private static m_CommandPrefix:string = '!';
     public static COMMAND_REGISTRY_KEY:string = 'commandregistry';
+
+    public static GetCommandPrefix():string { return this.m_CommandPrefix; }
+    public static SetCommandPrefix(value:string):void { this.m_CommandPrefix = value; }
 
     public static ParamParserSpaces(args:string):string[]
     {
@@ -138,5 +142,34 @@ export class CommandUtils
             return undefined;
 
         return [parserType, parser];
+    }
+
+    public static GetCommandHelp(commandRegistry:CommandRegistry, tag?:Tag):string[]
+    {
+        let commands:string[] = [];
+        let logger:Logger = new Logger('GetCommandHelp');
+
+        commandRegistry.forEach((metaData:CommandMetaData[], key:string)=>
+        {
+            metaData.forEach((data:CommandMetaData)=>
+            {
+                let str:string = `\`!${key} `;
+                if (tag != undefined)
+                    str = `\`${this.GetCommandPrefix()}${tag} ${key} `;
+
+                data.ParamNames.forEach((paramName:string)=>
+                {
+                    str += `<${paramName}> `;
+                });
+
+                str += `\`  - ${data.Description}`;
+                logger.Debug(`command string: ${str}`);
+                commands.push(str);
+            });
+        });
+
+        // TODO: sort the commands and command overloads
+
+        return commands;
     }
 }
