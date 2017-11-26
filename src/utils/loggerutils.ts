@@ -99,7 +99,7 @@ export class LoggerUtils
                 }),
                 new (winston.transports.File)({
                     name: 'log',
-                    filename: 'dist/nyxbot.log',
+                    filename: 'nyxbot.log',
                     level: this.m_VerboseLogging ? 'Verbose' : 'Debug',
                     json: false,
                     formatter: LoggerUtils.LogFormatter

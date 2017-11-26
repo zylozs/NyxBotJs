@@ -6,7 +6,7 @@ let merge2 = require("merge2");
 let sourcemaps = require("gulp-sourcemaps");
 let typescript = require("gulp-typescript");
 
-gulp.task("default", ["prod"]);
+gulp.task("default", ["dev"]);
 
 gulp.task("clean", function() {
     return del("dist");

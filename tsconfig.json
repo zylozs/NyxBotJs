@@ -8,7 +8,8 @@
     "noImplicitReturns": true,
     "noImplicitThis": true,
     "strictNullChecks": true,
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "outDir": "./dist"
   },
   "exclude": [
     "node_modules"

@@ -2,10 +2,7 @@
   "name": "nyxbotjs",
   "version": "1.0.0",
   "description": "",
-  "main": "gulpfile.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "main": "nyxbot.js",
   "author": "",
   "license": "MIT",
   "devDependencies": {
