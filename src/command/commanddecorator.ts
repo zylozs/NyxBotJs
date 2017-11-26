@@ -33,7 +33,7 @@ export function Usage(usage:string):MethodDecorator
 {
     return function (target:any, key:string, descriptor:PropertyDescriptor):PropertyDescriptor
     {
-        let commandRegistry:CommandMetaData[] = Reflect.getMetadata(CommandUtils.COMMAND_REGISTRY_KEY, target);
+        let metaData:CommandMetaData[] = Reflect.getMetadata(CommandUtils.COMMAND_REGISTRY_KEY, target);
         let logger: Logger = new Logger('Usage Decorator');
         const error:Function = (target:any, key:string, logger:Logger) =>
         {
@@ -41,17 +41,17 @@ export function Usage(usage:string):MethodDecorator
             throw EvalError(`Improper use of Usage Decorator on ${target.constructor.name}.${key}`);
         };
 
-        if (commandRegistry == undefined)
+        if (metaData == undefined)
         {
             error(target, key, logger);
         }
 
-        for (let metaData of commandRegistry)
+        for (let data of metaData)
         {
-            if (metaData.FunctionName == key)
+            if (data.FunctionName == key)
             {
-                metaData.Usage = usage.replace(/\s\s+/g, '\n');
-                logger.Verbose(JSON.stringify(metaData));
+                data.Usage = usage.replace(/\s\s+/g, '\n');
+                logger.Verbose(JSON.stringify(data));
                 return descriptor;
             }
         }

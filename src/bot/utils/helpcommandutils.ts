@@ -41,8 +41,10 @@ export class HelpCommandUtils
         let helpStr:string = '__**Basic Commands:**__\n';
         let commands:string[] = CommandUtils.GetCommandHelp(commandAPI.m_CommandRegistry);
 
-        for(let command of commands)
+        commands.forEach((command:string)=>
+        {
             helpStr += command + '\n';
+        });
 
         return helpStr;
     }

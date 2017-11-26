@@ -96,7 +96,7 @@ export class CommandUtils
         let registry:CommandRegistry = new Map();
         let metaData:CommandMetaData[] = Reflect.getMetadata(CommandUtils.COMMAND_REGISTRY_KEY, <any>target) || [];
 
-        for (let data of metaData)
+        metaData.forEach((data:CommandMetaData)=> 
         {
             if (registry.has(data.CommandName))
             {
@@ -106,7 +106,7 @@ export class CommandUtils
             {
                 registry.set(data.CommandName, [data]);
             }
-        }
+        });
 
         target.m_CommandRegistry = registry;
 
@@ -128,7 +128,7 @@ export class CommandUtils
         let parserType:ParamParserType = ParamParserType.SPACES;
         let override:boolean = false;
 
-        for (let data of metaData)
+        metaData.forEach((data:CommandMetaData)=>
         {
             if (data.OverrideDefaultParser)
             {
@@ -136,7 +136,7 @@ export class CommandUtils
                 parser = data.ParamParser;
                 parserType = data.ParamParserType;
             }
-        }
+        });
 
         if (!override)
             return undefined;
