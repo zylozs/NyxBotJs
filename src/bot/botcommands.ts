@@ -2,7 +2,7 @@ import { Message } from 'discord.js';
 import { CommandUtils } from "../utils/commandutils";
 import { CommandAPI, Command, VoiceEventHandler, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandErrorCode, Tag } from '../command/command';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
-import { BotAPI, MessageInfo } from '../nyxbot';
+import { BotAPI, MessageInfo, DiscordGuildMember } from '../nyxbot';
 import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
 
@@ -50,15 +50,14 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
         args = args.concat(parsedArgs[1]);
 
         // Call the command
-        await (<any>this)[parsedArgs[0]].apply(this, args);
+        const result:CommandErrorCode = await (<any>this)[parsedArgs[0]].apply(this, args);
 
-        return [ExecuteCommandResult.STOP, CommandErrorCode.SUCCESS];
+        return [ExecuteCommandResult.STOP, result];
     }
 
     public async ReadMessage(message:Message):Promise<void>
     {
-        // So the compiler stops yelling at me...
-        message;
+
     }
 
     public async Shutdown():Promise<void>
@@ -76,33 +75,25 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
 
     }
 
-    @PluginCommand('Test description', {name:'test'})
-    public async TestCommand(messageInfo:MessageInfo, ihateyou:boolean, unused:number, variables?:string):Promise<void>
-    {
-        if (ihateyou == true)
-            await this.m_Bot.SendMessage(messageInfo.Channel, 'true?');
-
-        if (unused > 50)
-            await this.m_Bot.SendMessage(messageInfo.Channel, 'counting is hard');
-
-        await this.m_Bot.SendMessage(messageInfo.Channel, `Why are you saying ${<string>variables}?`);
-    }
-
-    @BotCommand('Bots sounds like beep boop', {name:'bots'})
-    public async BotCommand(messageInfo:MessageInfo, bots:number, arepretty:string, dope:any):Promise<void>
-    {
-        await this.m_Bot.SendMessage(messageInfo.Channel, 'FOOTBALL');
-    }
-
-    @Usage(`This is my documentation... WEEEEEEEEEEEEEEEEEEEEE 
-            line testtttt.. idk if this will work tho...
-            LOOKS LIKE IT DOES... BUT WITH NO AUTOMATIC NEW LINES :(
-            jk, it works. also caps are dumb`
+    @Usage(
+       `Changes the bot's server nickname to the name you provide.
+        \`!changebotname <name>\`
+        **Example:** \`!changebotname He-man, Master of the Universe\``
     )
-    @BotCommand('wooo')
-    public async UsageTest(messageInfo:MessageInfo):Promise<void>
+    @BotCommand('Change the name of the bot to <name>', { name:'changebotname', paramParserType:ParamParserType.ALL })
+    public async _ChangeBotName_(messageInfo:MessageInfo, name:string):Promise<CommandErrorCode>
     {
-        await this.m_Bot.SendMessage(messageInfo.Channel, 'usage?');
+        let botMember:DiscordGuildMember = messageInfo.Server.me;
+        try
+        {
+            await botMember.setNickname(name);
+        }
+        catch (error)
+        {
+            return CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS;
+        }
+
+        return CommandErrorCode.SUCCESS;
     }
 
     @Usage(
@@ -111,8 +102,10 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
         **Example:** \`!shutdown\``
     )
     @BotCommand('Shutdown the bot (requires server admin permission)', { name:'exit' })
-    private async _Shutdown_(messageInfo:MessageInfo):Promise<void>
+    private async _Shutdown_(messageInfo:MessageInfo):Promise<CommandErrorCode>
     {
         await this.m_Bot.RequestShutdown();
+
+        return CommandErrorCode.SUCCESS;
     }
 }

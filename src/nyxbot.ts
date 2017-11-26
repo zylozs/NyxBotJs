@@ -16,7 +16,11 @@ const optionDefinitions = [
 
 const options = commandLineArgs(optionDefinitions);
 
+// Export a bunch of aliases to make it easier to use these types elsewhere
 export type DiscordChannel = Discord.TextChannel | Discord.DMChannel | Discord.GroupDMChannel;
+export type DiscordGuild = Discord.Guild;
+export type DiscordGuildMember = Discord.GuildMember;
+export type DiscordUser = Discord.User;
 
 export interface BotAPI
 {
@@ -27,9 +31,9 @@ export interface BotAPI
 // Message wrapper
 export type MessageInfo = 
 {
-    Server:Discord.Guild;
+    Server:DiscordGuild;
     Channel:DiscordChannel;
-    Author:Discord.User;
+    Author:DiscordUser;
     RawContent:string;
     CleanContent:string;
 };
@@ -50,6 +54,10 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
         EventListenerUtils.RegisterEventListeners(this);
     }
 
+    ///////////////////////////////////////////////////////////
+    /// BOT API
+    ///////////////////////////////////////////////////////////
+
     public async RequestShutdown():Promise<void>
     {
         // TODO: test for admin permission
@@ -58,6 +66,17 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
         this.destroy();
         process.exit(0);
     }
+
+    public async SendMessage(channel: DiscordChannel, message: string): Promise<void>
+    {
+        // TODO: add checks for things like message length
+        this.Logger.Debug(message);
+        channel.send(message);
+    }
+
+    ///////////////////////////////////////////////////////////
+    /// CLIENT EVENTS
+    ///////////////////////////////////////////////////////////
 
     @ClientEvent('ready')
     protected HandleReady():void
@@ -85,12 +104,9 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
         this.DisplayError(message.channel, result[1]);
     }
 
-    public async SendMessage(channel:DiscordChannel, message:string):Promise<void>
-    {
-        // TODO: add checks for things like message length
-        this.Logger.Debug(message);
-        channel.send(message);
-    }
+    ///////////////////////////////////////////////////////////
+    /// OTHER
+    ///////////////////////////////////////////////////////////
 
     private async TryExecuteCommand(message:Discord.Message):Promise<[ExecuteCommandResult, CommandErrorCode]>
     {
@@ -163,6 +179,10 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
             break;
         case CommandErrorCode.PLUGIN_DISABLED:
             break;
+        case CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS:
+            break;
+        case CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS:
+            break;
         }
 
         return context;
@@ -194,6 +214,13 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
         case CommandErrorCode.PLUGIN_DISABLED:
             message = `This plugin is currently disabled. To use commands for this plugin, please enable it first.`;
             break;
+        case CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS:
+            message = `The bot does not have sufficient permissions to perform this action.`;
+            break;
+        case CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS:
+            message = `You do not have sufficient permissions to perform this action.`;
+            break;
+
         }
 
         if (message !== '')
