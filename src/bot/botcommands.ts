@@ -6,6 +6,7 @@ import { BotAPI, MessageInfo, DiscordGuildMember } from '../nyxbot';
 import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
 import { HelpCommandUtils } from './utils/helpcommandutils';
+import { UsageCommandUtils } from './utils/usagecommandutils';
 
 export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnabled
 {
@@ -102,6 +103,18 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
     }
 
     @Usage(
+       `Says hello!
+        \`!hello\`
+        **Example:** \`!hello\``
+    )
+    @BotCommand('Say Hello', { name:'hello' })
+    private async _Hello_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    {
+        this.m_Bot.SendMessage(messageInfo.Channel, `Hello <@${messageInfo.Author.id}>`);
+        return CommandErrorCode.SUCCESS;
+    }
+
+    @Usage(
        `Displays the basic howto message for the bot. This explains how to use commands.
         \`!help\`
         **Example:** \`!help\``
@@ -137,5 +150,38 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
         await this.m_Bot.RequestShutdown();
 
         return CommandErrorCode.SUCCESS;
+    }
+
+    @Usage(
+       `Provides documentation on usage:
+        \`!usage\``
+    )
+    @BotCommand('Get the basic help page for the usage command', { name:'usage' })
+    private async _Usage_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    {
+        return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, undefined, undefined);
+    }
+
+    @Usage(
+       `Provides documentation on the bot command you specify:
+        \`!usage <botcommand>\`
+        **Example:** \`!usage help\``
+    )
+    @BotCommand('Shows the usage for a bot command', { name:'usage' })
+    private async _UsageBot_(messageInfo:MessageInfo, botcommand:Command):Promise<CommandErrorCode>
+    {
+        return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, undefined, botcommand);
+    }
+
+    @Usage(
+       `Provides documentation on the plugin command you specify:
+        \`!usage <tag> <command>\`
+        **Example with plugin tag:** \`!usage troll rickroll\`
+        **Example with plugin alias:** \`!usage t rickroll\``
+    )
+    @BotCommand('Shows the usage for a plugin command', { name:'usage' })
+    private async _UsagePlugin(messageInfo:MessageInfo, tag:Tag, command:Command):Promise<CommandErrorCode>
+    {
+        return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, tag, command);
     }
 }

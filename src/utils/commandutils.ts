@@ -95,9 +95,13 @@ export class CommandUtils
     {
         let registry:CommandRegistry = new Map();
         let metaData:CommandMetaData[] = Reflect.getMetadata(CommandUtils.COMMAND_REGISTRY_KEY, <any>target) || [];
+        let logger:Logger = new Logger(`Load Command Registry ${target.m_Tag}`);
 
         metaData.forEach((data:CommandMetaData)=> 
         {
+            if (data.Usage === '')
+                logger.Error(`Command [${data.CommandName}] does not have usage documentation. Every command must have usage documentation.`);
+
             if (registry.has(data.CommandName))
             {
                 (<CommandMetaData[]>registry.get(data.CommandName)).push(data);
@@ -110,7 +114,6 @@ export class CommandUtils
 
         target.m_CommandRegistry = registry;
 
-        let logger:Logger = new Logger(`Load Command Registry ${target.m_Tag}`);
         logger.Verbose(JSON.stringify([...registry]));
     }
 

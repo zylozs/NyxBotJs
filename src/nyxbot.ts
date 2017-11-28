@@ -171,13 +171,16 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
             context = { command:parsedCommand.Tag };
             break;
         case CommandErrorCode.UNRECOGNIZED_BOT_COMMAND:
+            context = { command:parsedCommand.Tag };
             break;
         case CommandErrorCode.INCORRECT_PLUGIN_COMMAND_USAGE:
             context = { tag:parsedCommand.Tag, command:parsedCommand.Command };
             break;
         case CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND:
+            context = { tag:parsedCommand.Tag, command:parsedCommand.Command };
             break;
         case CommandErrorCode.PLUGIN_DISABLED:
+            context = { command:parsedCommand.Tag };
             break;
         case CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS:
             break;
@@ -200,7 +203,10 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
             message = `Incorrect usage of command \`${context.command}\`. Please see the usage to learn how to properly use this command.\nJust Type: \`!usage ${context.command}\``;
             break;
         case CommandErrorCode.UNRECOGNIZED_BOT_COMMAND:
-            message = `That is not a recognized command. For help, just type \`!help\``;
+            if (context == undefined)
+                this.Logger.Error(`No context was provided for Error ${errorCode}`);
+
+            message = `\`${context.command}\` is not a recognized bot command. For help, just type \`!help bot\``;
             break;
         case CommandErrorCode.INCORRECT_PLUGIN_COMMAND_USAGE:
             if (context == undefined)
@@ -209,10 +215,16 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
             message = `Incorrect usage of command ${context.command}. Please see the usage to learn how to properly use this command.\nJust Type: \`!usage ${context.tag} ${context.command}\``;
             break;
         case CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND:
-            message = `That is not a recognized command. For help, just type \`!help\``;
+            if (context == undefined)
+                this.Logger.Error(`No context was provided for Error ${errorCode}`);
+
+            message = `\`${context.command}\` is not a recognized plugin command. For help, just type \`!help ${context.tag}\``;
             break;
         case CommandErrorCode.PLUGIN_DISABLED:
-            message = `This plugin is currently disabled. To use commands for this plugin, please enable it first.`;
+            if (context == undefined)
+                this.Logger.Error(`No context was provided for Error ${errorCode}`);
+
+            message = `This plugin is currently disabled. To use commands for this plugin, please enable it first. To enable it, just type \`!enableplugin ${context.tag}\``;
             break;
         case CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS:
             message = `The bot does not have sufficient permissions to perform this action.`;
@@ -220,7 +232,6 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
         case CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS:
             message = `You do not have sufficient permissions to perform this action.`;
             break;
-
         }
 
         if (message !== '')
