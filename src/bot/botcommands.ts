@@ -28,7 +28,7 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
 
     public async Initialize(bot:BotAPI, parentContext?:Logger):Promise<void>
     {
-        this.Logger = new Logger('BotCommands', parentContext);
+        this.Logger = Logger.CreateLogger(parentContext, 'BotCommands');
         this.m_Bot = bot;
         this.m_Tag = 'bot';
         this.m_DefaultParser = CommandUtils.ParamParserSpaces;

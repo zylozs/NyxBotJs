@@ -33,7 +33,7 @@ export class InputParserUtils
             if (temp.length > 0)
                 result.Args = temp.join(' ');
 
-            let logger: Logger = new Logger('ParseTextForCommandInfo', logContext);
+            let logger: Logger = Logger.CreateLogger(logContext, 'ParseTextForCommandInfo');
             logger.Verbose(`Parsed Command Info: ${JSON.stringify(result)}`);
 
             return result;
@@ -44,7 +44,7 @@ export class InputParserUtils
 
     public static ParseCommandArgs(commandRegistry:CommandRegistry, command:Command, args:string, defaultParser:Function, defaultParserType:ParamParserType, logContext?:Logger):[string, string[]] | undefined
     {
-        let logger:Logger = new Logger('ParseCommandArgs', logContext);
+        let logger:Logger = Logger.CreateLogger(logContext, 'ParseCommandArgs');
 
         if (!commandRegistry.has(command))
         {

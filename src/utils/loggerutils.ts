@@ -23,46 +23,81 @@ export interface LoggingEnabled
 export class Logger
 {
     private m_Context:string;
+    private m_AdditionalContext:string[];
 
-    public constructor(context:string, parentContext?:string | Logger)
+    public constructor(context:string)
     {
-        this.m_Context = '';
-        if (parentContext != undefined)
-        {
-            if (typeof parentContext === 'string')
-            {
-                this.m_Context = <string>parentContext;
-            }
-            else if (parentContext instanceof Logger)
-            {
-                this.m_Context = (<Logger>parentContext).m_Context;
-            }
+        this.m_Context = context;
+        this.m_AdditionalContext = [];
 
-            this.m_Context += '.';
+        LoggerUtils.CreateLoggerInstance();
+    }
+
+    public static CreateLogger(parentContext:string | Logger | undefined, childContext:string):Logger
+    {
+        if (parentContext == undefined)
+            return new Logger(childContext);
+        
+        if (typeof parentContext === 'string')
+        {
+            return new Logger(`${parentContext}.${childContext}`);
+        }
+        else if (parentContext instanceof Logger)
+        {
+            return parentContext.CreateChildLogger(childContext);
+        }
+    }
+
+    public CreateChildLogger(childContext:string):Logger
+    {
+        return new Logger(`${this.m_Context}.${childContext}`);
+    }
+
+    public AddAdditionalContext(context:string):void
+    {
+        this.m_AdditionalContext.push(context);
+    }
+
+    public RemoveAdditionalContext():void
+    {
+        if (this.m_AdditionalContext.length == 0)
+        {
+            throw RangeError(`You can't remove an additional context when there are none to remove.`);
         }
 
-        this.m_Context += context;
-        LoggerUtils.CreateLoggerInstance();
+        this.m_AdditionalContext.pop();
+    }
+
+    public GetContext():string
+    {
+        let context:string = this.m_Context;
+
+        this.m_AdditionalContext.forEach((value: string) => 
+        {
+            context += `.${value}`;
+        });
+
+        return context;
     }
 
     public Verbose(...args:any[]):void
     {
-        LoggerUtils.GetLoggerInstance().Verbose(args.join(' '), { context:this.m_Context });
+        LoggerUtils.GetLoggerInstance().Verbose(args.join(' '), { context:this.GetContext() });
     }
 
     public Debug(...args:any[]):void
     {
-        LoggerUtils.GetLoggerInstance().Debug(args.join(' '), { context:this.m_Context });
+        LoggerUtils.GetLoggerInstance().Debug(args.join(' '), { context:this.GetContext() });
     }
 
     public Warning(...args:any[]):void
     {
-        LoggerUtils.GetLoggerInstance().Warning(args.join(' '), { context:this.m_Context });
+        LoggerUtils.GetLoggerInstance().Warning(args.join(' '), { context:this.GetContext() });
     }
 
     public Error(...args:any[]):void
     {
-        LoggerUtils.GetLoggerInstance().Error(args.join(' '), { context:this.m_Context });
+        LoggerUtils.GetLoggerInstance().Error(args.join(' '), { context:this.GetContext() });
     }
 }
 
