@@ -35,17 +35,19 @@ export class Logger
 
     public static CreateLogger(parentContext:string | Logger | undefined, childContext:string):Logger
     {
-        if (parentContext == undefined)
-            return new Logger(childContext);
-        
-        if (typeof parentContext === 'string')
+        if (parentContext != undefined)
         {
-            return new Logger(`${parentContext}.${childContext}`);
+            if (typeof parentContext === 'string') 
+            {
+                return new Logger(`${parentContext}.${childContext}`);
+            }
+            else if (parentContext instanceof Logger) 
+            {
+                return parentContext.CreateChildLogger(childContext);
+            }
         }
-        else if (parentContext instanceof Logger)
-        {
-            return parentContext.CreateChildLogger(childContext);
-        }
+
+        return new Logger(childContext);
     }
 
     public CreateChildLogger(childContext:string):Logger

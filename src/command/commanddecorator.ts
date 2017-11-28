@@ -1,6 +1,6 @@
 import { CommandUtils } from '../utils/commandutils';
 import { ParamParserType, CommandMetaData } from './command';
-import { Logger } from '../utils/loggerutils';
+import { Logger, LoggingEnabled } from '../utils/loggerutils';
 
 export type CommandInfo = 
 {
@@ -14,6 +14,16 @@ export function PluginCommand(description:string, args?:CommandInfo):MethodDecor
     return function (target:any, key:string, descriptor:PropertyDescriptor):PropertyDescriptor
     {
         CommandUtils.RegisterCommandMetaData(description, target, key, args);
+
+        let originalValue:any = descriptor.value;
+        descriptor.value = function(...args:any[])
+        {
+            (<LoggingEnabled>this).Logger.AddAdditionalContext(key);
+            let result:any = originalValue.apply(this, args);
+            (<LoggingEnabled>this).Logger.RemoveAdditionalContext();
+            return result;
+        };
+
         return descriptor;
     }
 }
@@ -25,6 +35,16 @@ export function BotCommand(description:string, args?:CommandInfo):MethodDecorato
     return function (target:any, key:string, descriptor:PropertyDescriptor):PropertyDescriptor
     {
         CommandUtils.RegisterCommandMetaData(description, target, key, args);
+
+        let originalValue:any = descriptor.value;
+        descriptor.value = function (...args:any[])
+        {
+            (<LoggingEnabled>this).Logger.AddAdditionalContext(key);
+            let result:any = originalValue.apply(this, args);
+            (<LoggingEnabled>this).Logger.RemoveAdditionalContext();
+            return result;
+        };
+
         return descriptor;
     }
 }
