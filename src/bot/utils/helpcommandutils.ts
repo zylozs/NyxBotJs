@@ -1,5 +1,6 @@
-import { DiscordChannel, BotAPI } from "../../nyxbot";
-import { Command, CommandAPI } from "../../command/command";
+import { BotAPI } from "../../bot/botapi";
+import { DiscordChannel } from '../../discord/discordtypes';
+import { Command, CommandAPI } from "../../command/commandapi";
 import { CommandUtils } from "../../utils/commandutils";
 
 export class HelpCommandUtils

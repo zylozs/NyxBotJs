@@ -1,5 +1,5 @@
 import { CommandInfo } from "../command/commanddecorator";
-import { Command, CommandMetaData, ParamParserType, CommandRegistry, CommandAPI, Tag } from "../command/command";
+import { Command, CommandMetaData, ParamParserType, CommandRegistry, CommandAPI, Tag } from "../command/commandapi";
 import { Logger } from '../utils/loggerutils';
 const GetParameterNames = require('get-parameter-names');
 

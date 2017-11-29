@@ -1,5 +1,5 @@
 import { CommandUtils } from '../utils/commandutils';
-import { ParamParserType, CommandMetaData } from './command';
+import { ParamParserType, CommandMetaData } from './commandapi';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 
 export type CommandInfo = 

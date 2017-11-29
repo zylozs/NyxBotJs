@@ -1,21 +1,22 @@
-import { Message } from 'discord.js';
 import { CommandUtils } from "../utils/commandutils";
-import { CommandAPI, Command, VoiceEventHandler, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandErrorCode, Tag } from '../command/command';
+import { BotCommandAPI, CommandAPI, Command, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandErrorCode, Tag } from '../command/commandapi';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
-import { BotAPI, MessageInfo, DiscordGuildMember } from '../nyxbot';
+import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './botapi';
+import { DiscordGuildMember, DiscordVoiceChannel, DiscordUser } from '../discord/discordtypes';
 import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
 import { HelpCommandUtils } from './utils/helpcommandutils';
 import { UsageCommandUtils } from './utils/usagecommandutils';
 
-export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnabled
+export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEnabled
 {
     public Logger:Logger;
-    public m_Bot:BotAPI;
+    public m_Bot:ExtendedBotAPI;
     public m_Tag:Tag;
     public m_CommandRegistry:CommandRegistry;
     public m_DefaultParser:Function;
     public m_DefaultParserType:ParamParserType;
+    private m_VoiceStarter:DiscordUser | undefined;
 
     public IsCommand(command:Command):boolean
     {
@@ -27,13 +28,14 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
         return false;
     }
 
-    public async Initialize(bot:BotAPI, parentContext?:Logger):Promise<void>
+    public async Initialize(bot:ExtendedBotAPI, parentContext?:Logger):Promise<void>
     {
         this.Logger = Logger.CreateLogger(parentContext, 'BotCommands');
         this.m_Bot = bot;
         this.m_Tag = 'bot';
         this.m_DefaultParser = CommandUtils.ParamParserSpaces;
         this.m_DefaultParserType = ParamParserType.SPACES;
+        this.m_VoiceStarter = undefined;
 
         CommandUtils.LoadCommandRegistry(this);
     }
@@ -57,7 +59,7 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
         return [ExecuteCommandResult.STOP, result];
     }
 
-    public async ReadMessage(message:Message):Promise<void>
+    public async ReadMessage(message:MessageInfo):Promise<void>
     {
 
     }
@@ -136,6 +138,76 @@ export class BotCommands implements CommandAPI, VoiceEventHandler, LoggingEnable
     private async _HelpPage_(messageInfo:MessageInfo, pagename:string):Promise<CommandErrorCode>
     {
         await HelpCommandUtils.GetHelp(this, this.m_Bot, messageInfo.Channel, pagename);
+        return CommandErrorCode.SUCCESS;
+    }
+
+    @Usage(
+       `Tells the bot to join the voice channel you are currently in.
+        \`!join\`
+        **Example:** \`!join\``
+    )
+    @BotCommand('Join the voice channel you are currently in', { name:'join' })
+    private async _JoinMe_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    {
+        if (messageInfo.Member != undefined)
+        {
+            let channel:DiscordVoiceChannel = messageInfo.Member.voiceChannel;
+            if (channel != undefined)
+            {
+                this.m_VoiceStarter = messageInfo.Author;
+                await this.m_Bot.JoinVoiceChannel(channel);
+            }
+            else
+            {
+                await this.m_Bot.SendMessage(messageInfo.Channel, 'You are not currently in a voice channel.');
+            }
+        }
+        else
+        {
+            return CommandErrorCode.GUILD_ONLY_COMMAND;
+        }
+
+        return CommandErrorCode.SUCCESS;
+    }
+
+    @Usage(
+       `Tells the bot to join the voice channel with the given name. This is not case sensitive unless there are multiple channels with the same name. If there are multiple channels with the same name you will need to provide the exact, case sensitive, name.
+        \`!join <channel>\`
+        **Example when not case sensitive:** \`!join general\`
+        **Example when case sensitive:** \`!join GeNerAl\``
+    )
+    @BotCommand('Join voice channel with given name', { name:'join' })
+    private async _JoinChannel_(messageInfo:MessageInfo, channel:string):Promise<CommandErrorCode>
+    {
+        // TODO: implement
+        return CommandErrorCode.SUCCESS;
+    }
+
+    @Usage(
+       `Tells the bot to leave the voice channel it is currently in. Only the person who brought it into the voice channel (or an admin) can do this.
+        \`!leave\`
+        **Example:** \`!leave\``
+    )
+    @BotCommand('Leave the current voice channel', { name:'leave' })
+    private async _Leave_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    {
+        if (this.m_VoiceStarter == undefined)
+        {
+            this.m_Bot.SendMessage(messageInfo.Channel, 'I am not connected to any voice channel!');
+            return CommandErrorCode.SUCCESS;
+        }
+
+        // TODO: add admin check
+        if (messageInfo.Author == this.m_VoiceStarter)
+        {
+            this.m_VoiceStarter = undefined;
+            await this.m_Bot.LeaveVoiceChannel();
+        }
+        else
+        {
+            return CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS;
+        }
+
         return CommandErrorCode.SUCCESS;
     }
 

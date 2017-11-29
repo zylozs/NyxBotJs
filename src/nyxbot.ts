@@ -1,9 +1,10 @@
 import * as Discord from 'discord.js';
-import 'reflect-metadata';
+import { DiscordVoiceConnection, DiscordChannel, DiscordVoiceChannel, DiscordMessage, DiscordUser, DiscordGuildMember } from './discord/discordtypes';
+import { ExtendedBotAPI, MessageInfo } from './bot/botapi';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
-import { CommandAPI, ExecuteCommandResult, CommandErrorCode } from './command/command';
+import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode } from './command/commandapi';
 import { ParsedCommandInfo, InputParserUtils } from './utils/inputparserutils';
 
 const BotConfig = require('./config.json');
@@ -16,33 +17,12 @@ const optionDefinitions = [
 
 const options = commandLineArgs(optionDefinitions);
 
-// Export a bunch of aliases to make it easier to use these types elsewhere
-export type DiscordChannel = Discord.TextChannel | Discord.DMChannel | Discord.GroupDMChannel;
-export type DiscordGuild = Discord.Guild;
-export type DiscordGuildMember = Discord.GuildMember;
-export type DiscordUser = Discord.User;
-
-export interface BotAPI
-{
-    SendMessage(channel:DiscordChannel, message:string):Promise<void>;
-    RequestShutdown():Promise<void>;
-}
-
-// Message wrapper
-export type MessageInfo = 
-{
-    Server:DiscordGuild;
-    Channel:DiscordChannel;
-    Author:DiscordUser;
-    RawContent:string;
-    CleanContent:string;
-};
-
-class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEnabled
+class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, LoggingEnabled
 {
     public Logger:Logger;
+    private m_VoiceConnection:DiscordVoiceConnection | undefined;
 
-    private m_BotCommands:CommandAPI;
+    private m_BotCommands:BotCommandAPI;
 
     public constructor()
     {
@@ -50,6 +30,7 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
         this.Logger = new Logger('NyxBot');
         this.m_BotCommands = new BotCommands();
         this.Logger.Verbose('Constructor');
+        this.m_VoiceConnection = undefined;
 
         EventListenerUtils.RegisterEventListeners(this);
     }
@@ -57,6 +38,11 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
     ///////////////////////////////////////////////////////////
     /// BOT API
     ///////////////////////////////////////////////////////////
+
+    public IsInVoiceChannel():boolean
+    {
+        return this.m_VoiceConnection != undefined;
+    }
 
     public async RequestShutdown():Promise<void>
     {
@@ -71,7 +57,40 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
     {
         // TODO: add checks for things like message length
         this.Logger.Debug(message);
-        channel.send(message);
+        await channel.send(message);
+    }
+
+    ///////////////////////////////////////////////////////////
+    /// EXTENDED BOT API
+    ///////////////////////////////////////////////////////////
+    public async JoinVoiceChannel(channel:DiscordVoiceChannel):Promise<void>
+    {
+        if (this.m_VoiceConnection == undefined)
+        {
+            this.m_VoiceConnection = await channel.join();
+        }
+        else
+        {
+            await this.LeaveVoiceChannel();
+            this.m_VoiceConnection = await channel.join();
+        }
+
+        // TODO: add join events
+    }
+
+    public async LeaveVoiceChannel():Promise<void>
+    {
+        if (this.m_VoiceConnection == undefined)
+        {
+            this.Logger.Error('You cannot leave a voice channel when you are not in one.')
+            return;
+        }
+
+        this.m_VoiceConnection.disconnect();
+        this.m_VoiceConnection = undefined;
+
+        // TODO: add leave events
+        // TODO: add stop "sound queue" events
     }
 
     ///////////////////////////////////////////////////////////
@@ -79,16 +98,16 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
     ///////////////////////////////////////////////////////////
 
     @ClientEvent('ready')
-    protected HandleReady():void
+    protected async HandleReady():Promise<void>
     {
-        this.m_BotCommands.Initialize(this, this.Logger);
+        await this.m_BotCommands.Initialize(this, this.Logger);
 
         this.Logger.Debug('Ready');
         console.log('Ready');
     }
 
     @ClientEvent('message')
-    protected async HandleMessage(message:Discord.Message):Promise<void>
+    protected async HandleMessage(message:DiscordMessage):Promise<void>
     {
         if (message.author == this.user || message.system)
             return;
@@ -108,13 +127,14 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
     /// OTHER
     ///////////////////////////////////////////////////////////
 
-    private async TryExecuteCommand(message:Discord.Message):Promise<[ExecuteCommandResult, CommandErrorCode]>
+    private async TryExecuteCommand(message:DiscordMessage):Promise<[ExecuteCommandResult, CommandErrorCode]>
     {
         const messageWrapper:MessageInfo = 
         { 
             Server:message.guild, 
             Channel:message.channel, 
-            Author:message.author, 
+            Author:message.author,
+            Member:message.member,
             RawContent:message.content, 
             CleanContent:message.cleanContent 
         };
@@ -231,6 +251,9 @@ class NyxBot extends Discord.Client implements BotAPI, EventListener, LoggingEna
             break;
         case CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS:
             message = `You do not have sufficient permissions to perform this action.`;
+            break;
+        case CommandErrorCode.GUILD_ONLY_COMMAND:
+            message = `You can only execute this command from a guild.`;
             break;
         }
 

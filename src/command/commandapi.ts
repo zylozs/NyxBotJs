@@ -1,6 +1,5 @@
-import { Message } from 'discord.js';
 import { Logger } from '../utils/loggerutils'
-import { BotAPI, MessageInfo } from '../nyxbot';
+import { BotAPI, MessageInfo, ExtendedBotAPI } from '../bot/botapi';
 import { ParsedCommandInfo } from '../utils/inputparserutils';
 
 // Aliases
@@ -44,7 +43,8 @@ export enum CommandErrorCode
     PLUGIN_DISABLED,
     NOT_A_COMMAND,
     INSUFFICIENT_BOT_PERMISSIONS,
-    INSUFFICIENT_USER_PERMISSIONS
+    INSUFFICIENT_USER_PERMISSIONS,
+    GUILD_ONLY_COMMAND
 }
 
 export interface CommandAPI
@@ -60,13 +60,13 @@ export interface CommandAPI
 
     // Async Functions
     Initialize(bot:BotAPI, parentContext?:Logger):Promise<void>;
-    TryExecuteCommand(messageInfo: MessageInfo, parsedCommand: ParsedCommandInfo): Promise<[ExecuteCommandResult, CommandErrorCode]>;
-    ReadMessage(message:Message):Promise<void>;
+    TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>;
+    ReadMessage(message:MessageInfo):Promise<void>;
     Shutdown():Promise<void>
 }
 
-export interface VoiceEventHandler
+export interface BotCommandAPI extends CommandAPI
 {
-    HandleJoinVoiceChannel():Promise<void>;
-    HandleLeaveVoiceChannel():Promise<void>;
+    m_Bot:ExtendedBotAPI;
+    Initialize(bot:ExtendedBotAPI, parentContext?:Logger):Promise<void>;
 }

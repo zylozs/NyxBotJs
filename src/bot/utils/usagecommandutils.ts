@@ -1,5 +1,6 @@
-import { CommandAPI, Tag, Command, CommandErrorCode, CommandMetaData } from '../../command/command';
-import { BotAPI, DiscordChannel } from '../../nyxbot';
+import { CommandAPI, Tag, Command, CommandErrorCode, CommandMetaData } from '../../command/commandapi';
+import { BotAPI } from '../../bot/botapi';
+import { DiscordChannel } from '../../discord/discordtypes';
 
 export class UsageCommandUtils
 {

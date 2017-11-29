@@ -1,4 +1,4 @@
-import { Tag, Command, CommandRegistry, ParamParserType, CommandMetaData } from '../command/command';
+import { Tag, Command, CommandRegistry, ParamParserType, CommandMetaData } from '../command/commandapi';
 import { Logger } from './loggerutils';
 import { CommandUtils } from './commandutils';
 
