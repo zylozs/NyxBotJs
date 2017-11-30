@@ -1,6 +1,6 @@
 import * as Discord from 'discord.js';
 import { DiscordVoiceConnection, DiscordChannel, DiscordVoiceChannel, DiscordMessage, DiscordUser, DiscordGuildMember } from './discord/discordtypes';
-import { ExtendedBotAPI, MessageInfo } from './bot/botapi';
+import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './bot/botapi';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
@@ -23,6 +23,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     private m_VoiceConnection:DiscordVoiceConnection | undefined;
 
     private m_BotCommands:BotCommandAPI;
+    private m_VoiceEventHandlers:Set<VoiceEventHandler>;
 
     public constructor()
     {
@@ -31,6 +32,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         this.m_BotCommands = new BotCommands();
         this.Logger.Verbose('Constructor');
         this.m_VoiceConnection = undefined;
+        this.m_VoiceEventHandlers = new Set<VoiceEventHandler>();
 
         EventListenerUtils.RegisterEventListeners(this);
     }
@@ -42,6 +44,16 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     public IsInVoiceChannel():boolean
     {
         return this.m_VoiceConnection != undefined;
+    }
+
+    public async RegisterVoiceEventHandler(object:VoiceEventHandler):Promise<void>
+    {
+        if (this.m_VoiceEventHandlers.has(object))
+        {
+            throw EvalError('You cannot register the same VoiceEventHandler twice');
+        }
+
+        this.m_VoiceEventHandlers.add(object);
     }
 
     public async RequestShutdown():Promise<void>
@@ -60,6 +72,16 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         await channel.send(message);
     }
 
+    public async UnRegisterVoiceEventHandler(object:VoiceEventHandler):Promise<void>
+    {
+        if (!this.m_VoiceEventHandlers.has(object))
+        {
+            throw EvalError('You cannot unregister a VoiceEventHandler that was never registered.');
+        }
+
+        this.m_VoiceEventHandlers.delete(object);
+    }
+
     ///////////////////////////////////////////////////////////
     /// EXTENDED BOT API
     ///////////////////////////////////////////////////////////
@@ -71,11 +93,20 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         }
         else
         {
+            if (this.m_VoiceConnection.channel === channel) 
+            {
+                this.Logger.Debug('You are already in this voice channel; backing out early.');
+                return;
+            }
+
             await this.LeaveVoiceChannel();
             this.m_VoiceConnection = await channel.join();
         }
 
-        // TODO: add join events
+        this.m_VoiceEventHandlers.forEach(async (eventHandler:VoiceEventHandler)=>
+        {
+            await eventHandler.HandleJoinVoiceChannel();
+        });
     }
 
     public async LeaveVoiceChannel():Promise<void>
@@ -89,7 +120,11 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         this.m_VoiceConnection.disconnect();
         this.m_VoiceConnection = undefined;
 
-        // TODO: add leave events
+        this.m_VoiceEventHandlers.forEach(async (eventHandler: VoiceEventHandler) =>
+        {
+            await eventHandler.HandleLeaveVoiceChannel();
+        });
+
         // TODO: add stop "sound queue" events
     }
 
@@ -131,7 +166,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     {
         const messageWrapper:MessageInfo = 
         { 
-            Server:message.guild, 
+            Guild:message.guild, 
             Channel:message.channel, 
             Author:message.author,
             Member:message.member,

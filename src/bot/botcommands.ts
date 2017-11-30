@@ -2,7 +2,7 @@ import { CommandUtils } from "../utils/commandutils";
 import { BotCommandAPI, CommandAPI, Command, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandErrorCode, Tag } from '../command/commandapi';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './botapi';
-import { DiscordGuildMember, DiscordVoiceChannel, DiscordUser } from '../discord/discordtypes';
+import { DiscordGuildMember, DiscordVoiceChannel, DiscordUser, DiscordSnowflake, DiscordGuildChannel, Collection } from '../discord/discordtypes';
 import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
 import { HelpCommandUtils } from './utils/helpcommandutils';
@@ -37,6 +37,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         this.m_DefaultParserType = ParamParserType.SPACES;
         this.m_VoiceStarter = undefined;
 
+        this.m_Bot.RegisterVoiceEventHandler(this);
         CommandUtils.LoadCommandRegistry(this);
     }
 
@@ -91,7 +92,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     @BotCommand('Change the name of the bot to <name>', { name:'changebotname', paramParserType:ParamParserType.ALL })
     private async _ChangeBotName_(messageInfo:MessageInfo, name:string):Promise<CommandErrorCode>
     {
-        let botMember:DiscordGuildMember = messageInfo.Server.me;
+        let botMember:DiscordGuildMember = messageInfo.Guild.me;
         try
         {
             await botMember.setNickname(name);
@@ -179,7 +180,58 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     @BotCommand('Join voice channel with given name', { name:'join' })
     private async _JoinChannel_(messageInfo:MessageInfo, channel:string):Promise<CommandErrorCode>
     {
-        // TODO: implement
+        if (messageInfo.Member != undefined)
+        {
+            const channels:Collection<DiscordSnowflake, DiscordGuildChannel> = messageInfo.Guild.channels;
+            let duplicateChannels:DiscordGuildChannel[] = [];
+            let selectedChannel:DiscordGuildChannel | undefined = undefined;
+            
+            channels.forEach((guildChannel:DiscordGuildChannel)=>
+            {
+                if (guildChannel.type === 'voice' && guildChannel.name.toLowerCase() === channel.toLowerCase())
+                {
+                    duplicateChannels.push(guildChannel);
+                }
+            });
+
+            if (duplicateChannels.length == 0)
+            {
+                await this.m_Bot.SendMessage(messageInfo.Channel, `There is no voice channel called \`${channel}\`.`);
+                return CommandErrorCode.SUCCESS;
+            }
+            else if (duplicateChannels.length == 1)
+            {
+                selectedChannel = duplicateChannels[0];
+            }
+            else
+            {
+                this.Logger.Debug('More than one channel with name found. Picking the channel with the same capitalization.');
+
+                for (let guildChannel of duplicateChannels)
+                {
+                    if (guildChannel.name === channel)
+                    {
+                        selectedChannel = guildChannel;
+                        break;
+                    }
+                }
+            }
+
+            if (selectedChannel != undefined) 
+            {
+                this.m_VoiceStarter = messageInfo.Author;
+                await this.m_Bot.JoinVoiceChannel(<DiscordVoiceChannel>selectedChannel);
+            }
+            else
+            {
+                await this.m_Bot.SendMessage(messageInfo.Channel, 'There is more than one channel with this name. Please use the correct capitalization to join a specific one.');
+            }
+        }
+        else
+        {
+            return CommandErrorCode.GUILD_ONLY_COMMAND;
+        }
+
         return CommandErrorCode.SUCCESS;
     }
 

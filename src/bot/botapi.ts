@@ -3,8 +3,10 @@ import { DiscordChannel, DiscordVoiceChannel, DiscordGuild, DiscordUser, Discord
 export interface BotAPI
 {
     IsInVoiceChannel():boolean;
+    RegisterVoiceEventHandler(object:VoiceEventHandler):Promise<void>;
     RequestShutdown():Promise<void>;
     SendMessage(channel:DiscordChannel, message:string):Promise<void>;
+    UnRegisterVoiceEventHandler(object:VoiceEventHandler):Promise<void>;
 }
 
 // This is inteded solely for the bot. Do not call these outside of bot commands.
@@ -17,7 +19,7 @@ export interface ExtendedBotAPI extends BotAPI
 // Message wrapper
 export type MessageInfo = 
 {
-    Server:DiscordGuild;
+    Guild:DiscordGuild;
     Channel:DiscordChannel;
     Author:DiscordUser;
     Member?:DiscordGuildMember;
