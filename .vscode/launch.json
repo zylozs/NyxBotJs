@@ -8,11 +8,12 @@
             "type": "node",
             "request": "launch",
             "name": "Launch Program",
-            "program": "${workspaceFolder}/dist/nyxbot.js",
+            "program": "${workspaceRoot}/dist/nyxbot.js",
             "args": ["--verbose"],
-            "cwd": "${workspaceFolder}/dist",
+            "cwd": "${workspaceRoot}/dist",
             "sourceMaps": true,
-            "outFiles": [ "${workspaceFolder}/dist/**/*.js" ]
+            "outFiles": [ "${workspaceRoot}/dist/**/*.js" ],
+            "localRoot": "${workspaceRoot}/src"
         }
     ]
 }

@@ -5,6 +5,7 @@ let gulp = require("gulp");
 let merge2 = require("merge2");
 let sourcemaps = require("gulp-sourcemaps");
 let typescript = require("gulp-typescript");
+let path = require("path");
 
 gulp.task("default", ["dev"]);
 
@@ -32,6 +33,12 @@ gulp.task("prod", ["copy-deps"], function() {
 });
 
 gulp.task("dev", ["copy-deps"], function() {
+    const writeSourceMapsOptions = {
+        sourceRoot: (file) => {
+            return path.join(path.relative(path.join('dist', path.dirname(file.relative)), '.'), 'src');
+        },
+    };
+
     return project.src()
         .pipe(sourcemaps.init())
         .pipe(project(typescript.reporter.defaultReporter()))
@@ -41,6 +48,6 @@ gulp.task("dev", ["copy-deps"], function() {
             });
         })
         .js
-        .pipe(sourcemaps.write())
+        .pipe(sourcemaps.write(writeSourceMapsOptions))
         .pipe(gulp.dest("dist"))
 });
