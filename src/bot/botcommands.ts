@@ -1,5 +1,5 @@
 import { CommandUtils } from "../utils/commandutils";
-import { BotCommandAPI, CommandAPI, Command, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandErrorCode, Tag } from '../command/commandapi';
+import { BotCommandAPI, CommandAPI, Command, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandErrorCode, Tag, TagAlias } from '../command/commandapi';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './botapi';
 import { DiscordGuildMember, DiscordVoiceChannel, DiscordUser, DiscordSnowflake, DiscordGuildChannel, Collection } from '../discord/discordtypes';
@@ -14,6 +14,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     public Logger:Logger;
     public m_Bot:ExtendedBotAPI;
     public m_Tag:Tag;
+    public m_TagAlias:TagAlias;
     public m_CommandRegistry:CommandRegistry;
     public m_DefaultParser:Function;
     public m_DefaultParserType:ParamParserType;
@@ -34,6 +35,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         this.Logger = Logger.CreateLogger(parentContext, 'BotCommands');
         this.m_Bot = bot;
         this.m_Tag = 'bot';
+        this.m_TagAlias = 'b';
         this.m_DefaultParser = CommandUtils.ParamParserSpaces;
         this.m_DefaultParserType = ParamParserType.SPACES;
         this.m_VoiceStarter = undefined;

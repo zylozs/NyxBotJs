@@ -4,6 +4,7 @@ import { ParsedCommandInfo } from '../utils/inputparserutils';
 
 // Aliases
 export type Tag = string;
+export type TagAlias = string;
 export type Command = string;
 export type CommandRegistry = Map<Command, Array<CommandMetaData>>;
 
@@ -51,6 +52,7 @@ export interface CommandAPI
 {
     m_Bot:BotAPI;
     m_Tag:Tag;
+    m_TagAlias:TagAlias;
     m_CommandRegistry:CommandRegistry;
     m_DefaultParser:Function;
     m_DefaultParserType:ParamParserType;
