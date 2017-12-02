@@ -7,6 +7,7 @@ import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
 import { HelpCommandUtils } from './utils/helpcommandutils';
 import { UsageCommandUtils } from './utils/usagecommandutils';
+import { ImageUtils } from "../utils/imageutils";
 
 export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEnabled
 {
@@ -83,6 +84,21 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     ///////////////////////////////////////////////////////////
     /// BOT COMMANDS
     ///////////////////////////////////////////////////////////
+
+    @Usage(
+       `Changes the bot's avatar to the image you provide.
+        \`!changebotavatar <image_url>\`
+        **Example:** \`!changebotavatar www.website.com/url_to_image.png\``
+    )
+    @BotCommand('Change the bot\s avatar image. Url must be a PNG or JPG image.', { name:'changebotavatar', paramParserType:ParamParserType.ALL })
+    private async _ChangeBotAvatar_(messageInfo:MessageInfo, image_url:string):Promise<CommandErrorCode>
+    {
+        let newAvatar:Buffer = await ImageUtils.GetBase64ImageFromUrl(image_url);
+
+        await this.m_Bot.SetAvatar(newAvatar);
+
+        return CommandErrorCode.SUCCESS;
+    }
 
     @Usage(
        `Changes the bot's server nickname to the name you provide.

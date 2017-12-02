@@ -14,6 +14,7 @@ export interface ExtendedBotAPI extends BotAPI
 {
     JoinVoiceChannel(channel:DiscordVoiceChannel):Promise<void>;
     LeaveVoiceChannel():Promise<void>;
+    SetAvatar(image:Buffer | string):Promise<void>;
 }
 
 // Message wrapper

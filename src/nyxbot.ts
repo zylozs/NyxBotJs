@@ -128,6 +128,12 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         // TODO: add stop "sound queue" events
     }
 
+    public async SetAvatar(image:Buffer | string):Promise<void>
+    {
+        this.Logger.Debug('Setting bot avatar!');
+        await this.user.setAvatar(image);
+    }
+
     ///////////////////////////////////////////////////////////
     /// CLIENT EVENTS
     ///////////////////////////////////////////////////////////
