@@ -36,16 +36,18 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
         CommandUtils.LoadCommandRegistry(this);
 
         this.InitPlugin();
+
+        this.Logger.Debug(`Initialized plugin ${this.m_Tag}`);
     }
 
     protected abstract async InitPlugin():Promise<void>;
 
     public async TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>
     {
-        const parsedArgs:[string, string[]] | undefined = InputParserUtils.ParseCommandArgs(this.m_CommandRegistry, parsedCommand.Tag, parsedCommand.RawContent, this.m_DefaultParser, this.m_DefaultParserType, this.Logger);
+        const parsedArgs:[string, string[]] | undefined = InputParserUtils.ParseCommandArgs(this.m_CommandRegistry, parsedCommand.Command, parsedCommand.Args, this.m_DefaultParser, this.m_DefaultParserType, this.Logger);
         if (parsedArgs == undefined)
         {
-            return [ExecuteCommandResult.STOP, CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE];
+            return [ExecuteCommandResult.STOP, CommandErrorCode.INCORRECT_PLUGIN_COMMAND_USAGE];
         }
 
         // Setup our args

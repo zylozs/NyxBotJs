@@ -6,6 +6,8 @@ import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
 import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode } from './command/commandapi';
 import { ParsedCommandInfo, InputParserUtils } from './utils/inputparserutils';
+import { Plugin } from './plugins/plugin';
+import { PluginManager } from './plugins/pluginmanager';
 
 const BotConfig = require('./config.json');
 const { ClientEvent } = EventListenerUtils;
@@ -21,9 +23,11 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 {
     public Logger:Logger;
     private m_VoiceConnection:DiscordVoiceConnection | undefined;
+    private m_IsInitialized:boolean;
 
     private m_BotCommands:BotCommandAPI;
     private m_VoiceEventHandlers:Set<VoiceEventHandler>;
+    private m_PluginManager:PluginManager;
 
     public constructor()
     {
@@ -33,6 +37,8 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         this.Logger.Verbose('Constructor');
         this.m_VoiceConnection = undefined;
         this.m_VoiceEventHandlers = new Set<VoiceEventHandler>();
+        this.m_PluginManager = new PluginManager();
+        this.m_IsInitialized = false;
 
         EventListenerUtils.RegisterEventListeners(this);
     }
@@ -141,7 +147,24 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     @ClientEvent('ready')
     protected async HandleReady():Promise<void>
     {
+        if (this.m_IsInitialized)
+            return;
+
         await this.m_BotCommands.Initialize(this, this.Logger);
+
+        this.m_PluginManager.ScanSubdirs('./plugins/');
+        this.m_PluginManager.LoadPlugins({ OnComplete:(plugins:Plugin[]) => 
+        {
+            plugins.forEach((plugin:Plugin):void =>
+            {
+                plugin.Initialize(this, this.Logger);
+
+                this.Logger.Debug(`Loaded plugin ${plugin.m_Tag}`);
+                console.log(`Loaded plugin ${plugin.m_Tag}`);
+            });
+        }});
+
+        this.m_IsInitialized = true;
 
         this.Logger.Debug('Ready');
         console.log('Ready');
@@ -150,15 +173,8 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     @ClientEvent('message')
     protected async HandleMessage(message:DiscordMessage):Promise<void>
     {
-        if (message.author == this.user || message.system)
+        if (message.author == this.user || message.system || !this.m_IsInitialized || message.author.bot)
             return;
-
-        // So we can shutdown the bot while developing the command parsing...
-        if (message.content === 'shutdown')
-        {
-            await this.RequestShutdown();
-            return;
-        }
 
         const result:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecuteCommand(message);
         this.DisplayError(message.channel, result[1]);

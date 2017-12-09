@@ -1,0 +1,5 @@
+{
+    "name": "testplugin",
+    "file": "testplugin.js",
+    "class": "TestPlugin"
+}
