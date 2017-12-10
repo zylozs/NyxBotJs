@@ -1,15 +1,16 @@
 import { CommandAPI, Tag, Command, CommandErrorCode, CommandMetaData } from '../../command/commandapi';
-import { BotAPI } from '../../bot/botapi';
+import { ExtendedBotAPI } from '../../bot/botapi';
 import { DiscordChannel } from '../../discord/discordtypes';
+import { Plugin } from '../../plugins/plugin';
 
 export class UsageCommandUtils
 {
-    public static async GetUsage(commandAPI:CommandAPI, bot:BotAPI, channel:DiscordChannel, tag:Tag | undefined, command:Command | undefined):Promise<CommandErrorCode>
+    public static async GetUsage(commandAPI:CommandAPI, bot:ExtendedBotAPI, channel:DiscordChannel, tag:Tag | null, command:Command | null):Promise<CommandErrorCode>
     {
         // Bot commands
-        if (tag == undefined)
+        if (tag == null)
         {
-            if (command == undefined)
+            if (command == null)
             {
                 await bot.SendMessage(channel, this.GetUsageHowTo());
                 command = 'usage';
@@ -17,28 +18,7 @@ export class UsageCommandUtils
 
             if (commandAPI.IsCommand(command)) 
             {
-                let usageStr:string = `__**Usage for ${command}:**__\n`;
-                let commandsStr:string = '';
-
-                // TODO: sort these
-                const metaData:CommandMetaData[] = <CommandMetaData[]>commandAPI.m_CommandRegistry.get(command);
-
-                metaData.forEach((data: CommandMetaData, index:number) => 
-                {
-                    if (index != 0)
-                        commandsStr += '\n';
-
-                    commandsStr += `${data.Usage}\n`;
-                });
-
-                if (commandsStr === '')
-                {
-                    await bot.SendMessage(channel, 'This command does not have any usage documentation.');
-                }
-                else
-                {
-                    await bot.SendMessage(channel, usageStr + commandsStr);
-                }
+                await bot.SendMessage(channel, this.GetUsageForCommandAPI(commandAPI, command));
             }
             else 
             {
@@ -48,17 +28,67 @@ export class UsageCommandUtils
         // Plugin commands
         else
         {
-            // TODO: implement this when plugins exist
+            if (command == null)
+            {
+                return CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND;
+            }
+
+            let pluginFound:boolean = false;
+            const plugins:Plugin[] = await bot.GetPlugins();
+
+            for (let plugin of plugins)
+            {
+                const isThisPlugin:boolean = tag === plugin.m_Tag || tag === plugin.m_TagAlias;
+                if (isThisPlugin && plugin.IsCommand(command))
+                {
+                    pluginFound = true;
+
+                    await bot.SendMessage(channel, this.GetUsageForCommandAPI(plugin, command));
+
+                    break;
+                }
+            }
+
+            if (!pluginFound)
+            {
+                return CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND;
+            }
         }
 
         return CommandErrorCode.SUCCESS;
     }
 
-    public static GetUsageHowTo():string
+    private static GetUsageHowTo():string
     {
         let helpStr:string = '__**How to use usage:**__\n';
         helpStr += 'Usage is a command designed to help you understand how to use commands. When you provide a command, it will display the command\'s structure and examples for how to use it.\n\n';
 
         return helpStr;
+    }
+
+    private static GetUsageForCommandAPI(commandAPI:CommandAPI, command:Command):string
+    {
+        let usageStr:string = `__**Usage for ${command}:**__\n`;
+        let commandsStr:string = '';
+
+        // TODO: sort these
+        const metaData:CommandMetaData[] = <CommandMetaData[]>commandAPI.m_CommandRegistry.get(command);
+
+        metaData.forEach((data:CommandMetaData, index:number) => 
+        {
+            if (index != 0)
+                commandsStr += '\n';
+
+            commandsStr += `${data.Usage}\n`;
+        });
+
+        if (commandsStr === '')
+        {
+            return 'This command does not have any usage documentation.';
+        }
+        else
+        {
+            return usageStr + commandsStr;
+        }
     }
 }

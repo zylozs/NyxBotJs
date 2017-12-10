@@ -299,7 +299,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     @BotCommand('Get the basic help page for the usage command', { name:'usage' })
     private async _Usage_(messageInfo:MessageInfo):Promise<CommandErrorCode>
     {
-        return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, undefined, undefined);
+        return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, null, null);
     }
 
     @Usage(
@@ -310,7 +310,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     @BotCommand('Shows the usage for a bot command', { name:'usage' })
     private async _UsageBot_(messageInfo:MessageInfo, botcommand:Command):Promise<CommandErrorCode>
     {
-        return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, undefined, botcommand);
+        return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, null, botcommand);
     }
 
     @Usage(

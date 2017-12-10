@@ -428,7 +428,6 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
             message = `There is no plugin with tag or tag alias \`${context.tag}\`. For a list of plugins type \`!help plugins\``;
             break;
-
         }
 
         if (message !== '')
