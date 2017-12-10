@@ -48,7 +48,37 @@ export enum CommandErrorCode
     GUILD_ONLY_COMMAND,
     PLUGIN_COMMAND_COLLISION,
     PLUGIN_TAG_COLLISION,
-    UNRECOGNIZED_PLUGIN_TAG
+    UNRECOGNIZED_PLUGIN_TAG,
+    CUSTOM
+}
+
+export class CommandError
+{
+    public ErrorCode:CommandErrorCode;
+    public Context?:any;
+    public CustomMessage?:string;
+
+    public static New(errorCode:CommandErrorCode, context?:any, customMessage?:string):CommandError
+    {
+        let commandError:CommandError = new CommandError();
+        commandError.ErrorCode = errorCode;
+        commandError.Context = context;
+        commandError.CustomMessage = customMessage;
+
+        return commandError;
+    }
+
+    // Shorthand to make it more convenient for custom errors
+    public static Custom(customMessage?:string):CommandError
+    {
+        return CommandError.New(CommandErrorCode.CUSTOM, undefined, customMessage);
+    }
+
+    // Shorthand for success since its frequently used
+    public static Success(): CommandError
+    {
+        return CommandError.New(CommandErrorCode.SUCCESS);
+    }
 }
 
 export interface CommandAPI
@@ -65,7 +95,7 @@ export interface CommandAPI
 
     // Async Functions
     Initialize(bot:BotAPI, parentContext?:Logger):Promise<void>;
-    TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>;
+    TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandError]>;
     ReadMessage(message:MessageInfo):Promise<void>;
     Shutdown():Promise<void>
 }

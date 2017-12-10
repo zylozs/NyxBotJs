@@ -1,12 +1,12 @@
 import { ExtendedBotAPI } from "../../bot/botapi";
 import { DiscordChannel } from '../../discord/discordtypes';
-import { Command, CommandAPI, Tag, TagAlias, CommandErrorCode } from "../../command/commandapi";
+import { Command, CommandAPI, Tag, TagAlias, CommandErrorCode, CommandError } from "../../command/commandapi";
 import { CommandUtils } from "../../utils/commandutils";
 import { Plugin } from '../../plugins/plugin';
 
 export class HelpCommandUtils
 {
-    public static async GetHelp(commandAPI:CommandAPI, bot:ExtendedBotAPI, channel:DiscordChannel, command:Command, modifier?:Function):Promise<CommandErrorCode>
+    public static async GetHelp(commandAPI:CommandAPI, bot:ExtendedBotAPI, channel:DiscordChannel, command:Command, modifier?:Function):Promise<CommandError>
     {
         const ApplyModifier = (message:string):string => 
         {
@@ -53,7 +53,7 @@ export class HelpCommandUtils
         {
             if (bot.DoesPluginTagAliasHaveCollision(command))
             {
-                return CommandErrorCode.PLUGIN_TAG_COLLISION;
+                return CommandError.New(CommandErrorCode.PLUGIN_TAG_COLLISION);
             }
 
             let foundPlugin:boolean = false;
@@ -82,11 +82,11 @@ export class HelpCommandUtils
 
             if (!foundPlugin)
             {
-                return CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG;
+                return CommandError.New(CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG);
             }
         }
 
-        return CommandErrorCode.SUCCESS;
+        return CommandError.Success();
     }
 
     private static GetHelpBot(commandAPI:CommandAPI):string

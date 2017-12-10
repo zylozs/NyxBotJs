@@ -1,11 +1,11 @@
-import { CommandAPI, Tag, Command, CommandErrorCode, CommandMetaData } from '../../command/commandapi';
+import { CommandAPI, Tag, Command, CommandErrorCode, CommandMetaData, CommandError } from '../../command/commandapi';
 import { ExtendedBotAPI } from '../../bot/botapi';
 import { DiscordChannel } from '../../discord/discordtypes';
 import { Plugin } from '../../plugins/plugin';
 
 export class UsageCommandUtils
 {
-    public static async GetUsage(commandAPI:CommandAPI, bot:ExtendedBotAPI, channel:DiscordChannel, tag:Tag | null, command:Command | null):Promise<CommandErrorCode>
+    public static async GetUsage(commandAPI:CommandAPI, bot:ExtendedBotAPI, channel:DiscordChannel, tag:Tag | null, command:Command | null):Promise<CommandError>
     {
         // Bot commands
         if (tag == null)
@@ -18,11 +18,16 @@ export class UsageCommandUtils
 
             if (commandAPI.IsCommand(command)) 
             {
-                await bot.SendMessage(channel, this.GetUsageForCommandAPI(commandAPI, command));
+                let usageStr:string = this.GetUsageForCommandAPI(commandAPI, command);
+
+                if (usageStr === '')
+                    return CommandError.Custom('This command does not have any usage documentation.');
+
+                await bot.SendMessage(channel, usageStr);
             }
             else 
             {
-                return CommandErrorCode.UNRECOGNIZED_BOT_COMMAND;
+                return CommandError.New(CommandErrorCode.UNRECOGNIZED_BOT_COMMAND, { command:command });
             }
         }
         // Plugin commands
@@ -30,7 +35,7 @@ export class UsageCommandUtils
         {
             if (command == null)
             {
-                return CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND;
+                return CommandError.New(CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND, { command:command });
             }
 
             let pluginFound:boolean = false;
@@ -43,7 +48,12 @@ export class UsageCommandUtils
                 {
                     pluginFound = true;
 
-                    await bot.SendMessage(channel, this.GetUsageForCommandAPI(plugin, command));
+                    let usageStr:string = this.GetUsageForCommandAPI(plugin, command);
+
+                    if (usageStr === '')
+                        return CommandError.Custom('This command does not have any usage documentation.');
+
+                    await bot.SendMessage(channel, usageStr);
 
                     break;
                 }
@@ -51,11 +61,11 @@ export class UsageCommandUtils
 
             if (!pluginFound)
             {
-                return CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND;
+                return CommandError.New(CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND, { command:command });
             }
         }
 
-        return CommandErrorCode.SUCCESS;
+        return CommandError.Success();
     }
 
     private static GetUsageHowTo():string
@@ -84,7 +94,7 @@ export class UsageCommandUtils
 
         if (commandsStr === '')
         {
-            return 'This command does not have any usage documentation.';
+            return '';
         }
         else
         {

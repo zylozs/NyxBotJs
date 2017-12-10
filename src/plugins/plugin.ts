@@ -1,4 +1,4 @@
-import { CommandAPI, Tag, CommandRegistry, ParamParserType, Command, ExecuteCommandResult, CommandErrorCode, TagAlias } from '../command/commandapi';
+import { CommandAPI, Tag, CommandRegistry, ParamParserType, Command, ExecuteCommandResult, CommandErrorCode, TagAlias, CommandError } from '../command/commandapi';
 import { BotAPI, MessageInfo } from '../bot/botapi';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { CommandUtils } from '../utils/commandutils';
@@ -43,12 +43,12 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
 
     protected abstract async InitPlugin():Promise<void>;
 
-    public async TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>
+    public async TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandError]>
     {
         const parsedArgs:[string, string[]] | undefined = InputParserUtils.ParseCommandArgs(this.m_CommandRegistry, parsedCommand.Command, parsedCommand.Args, this.m_DefaultParser, this.m_DefaultParserType, this.Logger);
         if (parsedArgs == undefined)
         {
-            return [ExecuteCommandResult.STOP, CommandErrorCode.INCORRECT_PLUGIN_COMMAND_USAGE];
+            return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.INCORRECT_PLUGIN_COMMAND_USAGE)];
         }
 
         // Setup our args
@@ -57,7 +57,7 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
         args = args.concat(parsedArgs[1]);
 
         // Call the command
-        const result:CommandErrorCode = await (<any>this)[parsedArgs[0]].apply(this, args);
+        const result:CommandError = await (<any>this)[parsedArgs[0]].apply(this, args);
 
         return [ExecuteCommandResult.STOP, result];
     }

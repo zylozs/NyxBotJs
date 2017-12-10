@@ -4,7 +4,7 @@ import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './bot/botapi';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
-import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode, Command, Tag, TagAlias } from './command/commandapi';
+import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode, Command, Tag, TagAlias, CommandError } from './command/commandapi';
 import { ParsedCommandInfo, InputParserUtils } from './utils/inputparserutils';
 import { Plugin } from './plugins/plugin';
 import { PluginManager } from './plugins/pluginmanager';
@@ -191,7 +191,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         if (message.author == this.user || message.system || !this.m_IsInitialized || message.author.bot)
             return;
 
-        const result:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecuteCommand(message);
+        const result:[ExecuteCommandResult, CommandError] = await this.TryExecuteCommand(message);
         this.DisplayError(message.channel, result[1]);
     }
 
@@ -249,7 +249,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         }
     }
 
-    private async TryExecuteCommand(message:DiscordMessage):Promise<[ExecuteCommandResult, CommandErrorCode]>
+    private async TryExecuteCommand(message:DiscordMessage):Promise<[ExecuteCommandResult, CommandError]>
     {
         const messageWrapper:MessageInfo = 
         { 
@@ -265,23 +265,23 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
         if (parsedCommand == undefined)
         {
-            return [ExecuteCommandResult.STOP, CommandErrorCode.NOT_A_COMMAND];
+            return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.NOT_A_COMMAND)];
         }
 
-        const botResult:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecuteBotCommand(messageWrapper, parsedCommand);
+        const botResult:[ExecuteCommandResult, CommandError] = await this.TryExecuteBotCommand(messageWrapper, parsedCommand);
         this.DisplayError(message.channel, botResult[1], this.GetErrorContext(botResult[1], parsedCommand));
 
         // It wasn't a bot command, so lets find out if we have a plugin command
         if (botResult[0] == ExecuteCommandResult.CONTINUE)
         {
-            const pluginResult:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecutePluginCommand(messageWrapper, parsedCommand);
+            const pluginResult:[ExecuteCommandResult, CommandError] = await this.TryExecutePluginCommand(messageWrapper, parsedCommand);
             this.DisplayError(message.channel, pluginResult[1], this.GetErrorContext(pluginResult[1], parsedCommand));
         }
 
-        return [ExecuteCommandResult.STOP, CommandErrorCode.SUCCESS];
+        return [ExecuteCommandResult.STOP, CommandError.Success()];
     }
 
-    private async TryExecuteBotCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>
+    private async TryExecuteBotCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandError]>
     {
         if (this.m_BotCommands.IsCommand(parsedCommand.Tag))
         {
@@ -290,13 +290,13 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         // This isn't a bot command and there was nothing after it. This must be an unrecognized command.
         else if (parsedCommand.RawContent === '')
         {
-            return [ExecuteCommandResult.STOP, CommandErrorCode.UNRECOGNIZED_BOT_COMMAND];
+            return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.UNRECOGNIZED_BOT_COMMAND)];
         }
 
-        return [ExecuteCommandResult.CONTINUE, CommandErrorCode.SUCCESS];
+        return [ExecuteCommandResult.CONTINUE, CommandError.Success()];
     }
 
-    private async TryExecutePluginCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>
+    private async TryExecutePluginCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandError]>
     {
         // We might have a potential command collision
         if (this.m_PluginCommandCollisions.has(parsedCommand.Tag))
@@ -305,7 +305,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
             if (commands.includes(parsedCommand.Command))
             {
                 // We have a tag alias and command collision. This means we can't use this command without using the tag.
-                return [ExecuteCommandResult.STOP, CommandErrorCode.PLUGIN_COMMAND_COLLISION];
+                return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.PLUGIN_COMMAND_COLLISION)];
             }
         }
 
@@ -316,35 +316,51 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
             if (isThisPlugin && plugin.IsCommand(parsedCommand.Command))
             {
                 // TODO: Check if the plugin is disabled
-                //return [ExecuteCommandResult.STOP, CommandErrorCode.PLUGIN_DISABLED];
+                //return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.PLUGIN_DISABLED)];
 
                 return await plugin.TryExecuteCommand(messageInfo, parsedCommand);
             }
         }
 
-        return [ExecuteCommandResult.STOP, CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND];
+        return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND)];
     }
 
-    private GetErrorContext(errorCode:CommandErrorCode, parsedCommand:ParsedCommandInfo):any
+    private GetErrorContext(error:CommandError, parsedCommand:ParsedCommandInfo):any
     {
+        const errorContext:any = error.Context != undefined ? error.Context : {};
         let context:any = undefined;
 
-        switch(errorCode)
+        const AddContext = (name:string, value:any):any =>
         {
+            if (context == undefined)
+                context = {};
+
+            if (errorContext[name])
+                context[name] = errorContext[name];
+            else
+                context[name] = value;
+        };
+
+        switch(error.ErrorCode)
+        {
+        case CommandErrorCode.CUSTOM:
+            break;
         case CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE:
-            context = { command:parsedCommand.Tag };
+            AddContext('command', parsedCommand.Tag);
             break;
         case CommandErrorCode.UNRECOGNIZED_BOT_COMMAND:
-            context = { command:parsedCommand.Tag };
+            AddContext('command', parsedCommand.Tag);
             break;
         case CommandErrorCode.INCORRECT_PLUGIN_COMMAND_USAGE:
-            context = { tag:parsedCommand.Tag, command:parsedCommand.Command };
+            AddContext('tag', parsedCommand.Tag);
+            AddContext('command', parsedCommand.Command);
             break;
         case CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND:
-            context = { tag:parsedCommand.Tag, command:parsedCommand.Command };
+            AddContext('tag', parsedCommand.Tag);
+            AddContext('command', parsedCommand.Command);
             break;
         case CommandErrorCode.PLUGIN_DISABLED:
-            context = { tag:parsedCommand.Tag };
+            AddContext('tag', parsedCommand.Tag);
             break;
         case CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS:
             break;
@@ -353,24 +369,30 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         case CommandErrorCode.GUILD_ONLY_COMMAND:
             break;
         case CommandErrorCode.PLUGIN_COMMAND_COLLISION:
-            context = { tag:parsedCommand.Tag, command:parsedCommand.Command };
+            AddContext('tag', parsedCommand.Tag);
+            AddContext('command', parsedCommand.Command);
             break;
         case CommandErrorCode.PLUGIN_TAG_COLLISION:
-            context = { tag:parsedCommand.Command };
+            AddContext('tag', parsedCommand.Command);
             break;
         case CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG:
-            context = { tag:parsedCommand.Command };
+            AddContext('tag', parsedCommand.Command);
             break;
         }
 
         return context;
     }
 
-    private DisplayError(channel:DiscordChannel, errorCode:CommandErrorCode, context?:any):void
+    private DisplayError(channel:DiscordChannel, error:CommandError, context?:any):void
     {
         let message:string = '';
+        const errorCode:CommandErrorCode = error.ErrorCode;
+
         switch(errorCode)
         {
+        case CommandErrorCode.CUSTOM:
+            message = <string>error.CustomMessage;
+            break;
         case CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE:
             if (context == undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);

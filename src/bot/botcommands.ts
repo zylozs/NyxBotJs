@@ -1,5 +1,5 @@
 import { CommandUtils } from "../utils/commandutils";
-import { BotCommandAPI, CommandAPI, Command, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandErrorCode, Tag, TagAlias } from '../command/commandapi';
+import { BotCommandAPI, CommandAPI, Command, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandError, CommandErrorCode, Tag, TagAlias } from '../command/commandapi';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './botapi';
 import { DiscordGuildMember, DiscordVoiceChannel, DiscordUser, DiscordSnowflake, DiscordGuildChannel, Collection } from '../discord/discordtypes';
@@ -44,12 +44,12 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         CommandUtils.LoadCommandRegistry(this);
     }
 
-    public async TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>
+    public async TryExecuteCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandError]>
     {
         const parsedArgs:[string, string[]] | undefined = InputParserUtils.ParseCommandArgs(this.m_CommandRegistry, parsedCommand.Tag, parsedCommand.RawContent, this.m_DefaultParser, this.m_DefaultParserType, this.Logger);
         if (parsedArgs == undefined)
         {
-            return [ExecuteCommandResult.STOP, CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE];
+            return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE)];
         }
 
         // Setup our args
@@ -58,7 +58,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         args = args.concat(parsedArgs[1]);
 
         // Call the command
-        const result:CommandErrorCode = await (<any>this)[parsedArgs[0]].apply(this, args);
+        const result:CommandError = await (<any>this)[parsedArgs[0]].apply(this, args);
 
         return [ExecuteCommandResult.STOP, result];
     }
@@ -93,13 +93,13 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example:** \`!changebotavatar www.website.com/url_to_image.png\``
     )
     @BotCommand('Change the bot\s avatar image. Url must be a PNG or JPG image.', { name:'changebotavatar', paramParserType:ParamParserType.ALL })
-    private async _ChangeBotAvatar_(messageInfo:MessageInfo, image_url:string):Promise<CommandErrorCode>
+    private async _ChangeBotAvatar_(messageInfo:MessageInfo, image_url:string):Promise<CommandError>
     {
         let newAvatar:Buffer = await ImageUtils.GetBase64ImageFromUrl(image_url);
 
         await this.m_Bot.SetAvatar(newAvatar);
 
-        return CommandErrorCode.SUCCESS;
+        return CommandError.Success();
     }
 
     @Usage(
@@ -108,7 +108,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example:** \`!changebotname He-man, Master of the Universe\``
     )
     @BotCommand('Change the name of the bot to <name>', { name:'changebotname', paramParserType:ParamParserType.ALL })
-    private async _ChangeBotName_(messageInfo:MessageInfo, name:string):Promise<CommandErrorCode>
+    private async _ChangeBotName_(messageInfo:MessageInfo, name:string):Promise<CommandError>
     {
         let botMember:DiscordGuildMember = messageInfo.Guild.me;
         try
@@ -117,10 +117,10 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         }
         catch (error)
         {
-            return CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS;
+            return CommandError.New(CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS);
         }
 
-        return CommandErrorCode.SUCCESS;
+        return CommandError.Success();
     }
 
     @Usage(
@@ -129,10 +129,10 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example:** \`!hello\``
     )
     @BotCommand('Say Hello', { name:'hello' })
-    private async _Hello_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    private async _Hello_(messageInfo:MessageInfo):Promise<CommandError>
     {
         this.m_Bot.SendMessage(messageInfo.Channel, `Hello <@${messageInfo.Author.id}>`);
-        return CommandErrorCode.SUCCESS;
+        return CommandError.Success();
     }
 
     @Usage(
@@ -141,7 +141,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example:** \`!help\``
     )
     @BotCommand('Provides the basic help page', { name:'help' })
-    private async _Help_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    private async _Help_(messageInfo:MessageInfo):Promise<CommandError>
     {
         return await HelpCommandUtils.GetHelp(this, this.m_Bot, messageInfo.Channel, '');
     }
@@ -153,7 +153,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example for plugin:** \`!help music\``
     )
     @BotCommand('Provides the help page for a specific part of the bot or its plugins', { name:'help' })
-    private async _HelpPage_(messageInfo:MessageInfo, pagename:string):Promise<CommandErrorCode>
+    private async _HelpPage_(messageInfo:MessageInfo, pagename:string):Promise<CommandError>
     {
         return await HelpCommandUtils.GetHelp(this, this.m_Bot, messageInfo.Channel, pagename);
     }
@@ -164,7 +164,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example:** \`!join\``
     )
     @BotCommand('Join the voice channel you are currently in', { name:'join' })
-    private async _JoinMe_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    private async _JoinMe_(messageInfo:MessageInfo):Promise<CommandError>
     {
         if (messageInfo.Member != undefined)
         {
@@ -181,10 +181,10 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         }
         else
         {
-            return CommandErrorCode.GUILD_ONLY_COMMAND;
+            return CommandError.New(CommandErrorCode.GUILD_ONLY_COMMAND);
         }
 
-        return CommandErrorCode.SUCCESS;
+        return CommandError.Success();
     }
 
     @Usage(
@@ -194,7 +194,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example when case sensitive:** \`!join GeNerAl\``
     )
     @BotCommand('Join voice channel with given name', { name:'join' })
-    private async _JoinChannel_(messageInfo:MessageInfo, channel:string):Promise<CommandErrorCode>
+    private async _JoinChannel_(messageInfo:MessageInfo, channel:string):Promise<CommandError>
     {
         if (messageInfo.Member != undefined)
         {
@@ -213,7 +213,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
             if (duplicateChannels.length == 0)
             {
                 await this.m_Bot.SendMessage(messageInfo.Channel, `There is no voice channel called \`${channel}\`.`);
-                return CommandErrorCode.SUCCESS;
+                return CommandError.Success();
             }
             else if (duplicateChannels.length == 1)
             {
@@ -245,10 +245,10 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         }
         else
         {
-            return CommandErrorCode.GUILD_ONLY_COMMAND;
+            return CommandError.New(CommandErrorCode.GUILD_ONLY_COMMAND);
         }
 
-        return CommandErrorCode.SUCCESS;
+        return CommandError.Success();
     }
 
     @Usage(
@@ -257,12 +257,12 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example:** \`!leave\``
     )
     @BotCommand('Leave the current voice channel', { name:'leave' })
-    private async _Leave_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    private async _Leave_(messageInfo:MessageInfo):Promise<CommandError>
     {
         if (this.m_VoiceStarter == undefined)
         {
             this.m_Bot.SendMessage(messageInfo.Channel, 'I am not connected to any voice channel!');
-            return CommandErrorCode.SUCCESS;
+            return CommandError.Success();
         }
 
         // TODO: add admin check
@@ -273,10 +273,10 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         }
         else
         {
-            return CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS;
+            return CommandError.New(CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS);
         }
 
-        return CommandErrorCode.SUCCESS;
+        return CommandError.Success();
     }
 
     @Usage(
@@ -285,11 +285,11 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example:** \`!shutdown\``
     )
     @BotCommand('Shutdown the bot (requires server admin permission)', { name:'shutdown' })
-    private async _Shutdown_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    private async _Shutdown_(messageInfo:MessageInfo):Promise<CommandError>
     {
         await this.m_Bot.RequestShutdown();
 
-        return CommandErrorCode.SUCCESS;
+        return CommandError.Success();
     }
 
     @Usage(
@@ -297,7 +297,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         \`!usage\``
     )
     @BotCommand('Get the basic help page for the usage command', { name:'usage' })
-    private async _Usage_(messageInfo:MessageInfo):Promise<CommandErrorCode>
+    private async _Usage_(messageInfo:MessageInfo):Promise<CommandError>
     {
         return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, null, null);
     }
@@ -308,7 +308,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example:** \`!usage help\``
     )
     @BotCommand('Shows the usage for a bot command', { name:'usage' })
-    private async _UsageBot_(messageInfo:MessageInfo, botcommand:Command):Promise<CommandErrorCode>
+    private async _UsageBot_(messageInfo:MessageInfo, botcommand:Command):Promise<CommandError>
     {
         return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, null, botcommand);
     }
@@ -320,7 +320,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example with plugin alias:** \`!usage t rickroll\``
     )
     @BotCommand('Shows the usage for a plugin command', { name:'usage' })
-    private async _UsagePlugin(messageInfo:MessageInfo, tag:Tag, command:Command):Promise<CommandErrorCode>
+    private async _UsagePlugin(messageInfo:MessageInfo, tag:Tag, command:Command):Promise<CommandError>
     {
         return await UsageCommandUtils.GetUsage(this, this.m_Bot, messageInfo.Channel, tag, command);
     }
