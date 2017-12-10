@@ -4,7 +4,7 @@ import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './bot/botapi';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
-import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode } from './command/commandapi';
+import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode, Command, Tag } from './command/commandapi';
 import { ParsedCommandInfo, InputParserUtils } from './utils/inputparserutils';
 import { Plugin } from './plugins/plugin';
 import { PluginManager } from './plugins/pluginmanager';
@@ -24,7 +24,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     public Logger:Logger;
     private m_VoiceConnection:DiscordVoiceConnection | undefined;
     private m_IsInitialized:boolean;
-
+    private m_PluginCommandCollisions:Map<Tag, Command[]>;
     private m_BotCommands:BotCommandAPI;
     private m_VoiceEventHandlers:Set<VoiceEventHandler>;
     private m_PluginManager:PluginManager;
@@ -39,6 +39,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         this.m_VoiceEventHandlers = new Set<VoiceEventHandler>();
         this.m_PluginManager = new PluginManager();
         this.m_IsInitialized = false;
+        this.m_PluginCommandCollisions = new Map();
 
         EventListenerUtils.RegisterEventListeners(this);
     }
@@ -164,6 +165,8 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
             });
         }});
 
+        this.GeneratePluginCommandCollisions();
+
         this.m_IsInitialized = true;
 
         this.Logger.Debug('Ready');
@@ -183,6 +186,56 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     ///////////////////////////////////////////////////////////
     /// OTHER
     ///////////////////////////////////////////////////////////
+
+    private GeneratePluginCommandCollisions():void
+    {
+        // Create a map of all the alias and command collisions. This will be necessary for resolving which plugin should execute a command.
+        const plugins:Plugin[] = this.m_PluginManager.GetPlugins<Plugin>();
+
+        for (let i in plugins)
+        {
+            const outer:Plugin = plugins[i];
+
+            for (let j in plugins)
+            {
+                if (i == j)
+                {
+                    continue;
+                }
+
+                const inner:Plugin = plugins[j];
+
+                // This should NEVER happen. If it does, we have a serious problem.
+                if (outer.m_Tag === inner.m_Tag)
+                {
+                    this.Logger.Error(`Plugin Tag Collision! Tag: ${outer.m_Tag}`);
+                }
+
+                // Two plugins have a collision with their tag alias. If they don't have any command collisions, this is fine.
+                if (outer.m_TagAlias === inner.m_TagAlias)
+                {
+                    this.Logger.Warning(`Plugin Tag Alias Collision! Tag Alias: ${outer.m_TagAlias}`);
+
+                    for (let command of outer.m_CommandRegistry.keys())
+                    {
+                        if (inner.IsCommand(command))
+                        {
+                            // We have a command collision. This means that we cannot use the tag alias to use this command
+                            // since two plugins with the same tag alias have this command and the bot can't disambiguate which one to execute 
+                            this.Logger.Warning(`Plugin Command Collision! Command: ${command}`);
+
+                            if (!this.m_PluginCommandCollisions.has(outer.m_TagAlias))
+                            {
+                                this.m_PluginCommandCollisions.set(outer.m_TagAlias, []);
+                            }
+
+                            (<Command[]>this.m_PluginCommandCollisions.get(outer.m_TagAlias)).push(command);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     private async TryExecuteCommand(message:DiscordMessage):Promise<[ExecuteCommandResult, CommandErrorCode]>
     {
@@ -210,7 +263,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         if (botResult[0] == ExecuteCommandResult.CONTINUE)
         {
             const pluginResult:[ExecuteCommandResult, CommandErrorCode] = await this.TryExecutePluginCommand(messageWrapper, parsedCommand);
-            this.DisplayError(message.channel, pluginResult[1], this.GetErrorContext(botResult[1], parsedCommand));
+            this.DisplayError(message.channel, pluginResult[1], this.GetErrorContext(pluginResult[1], parsedCommand));
         }
 
         return [ExecuteCommandResult.STOP, CommandErrorCode.SUCCESS];
@@ -233,9 +286,31 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
     private async TryExecutePluginCommand(messageInfo:MessageInfo, parsedCommand:ParsedCommandInfo):Promise<[ExecuteCommandResult, CommandErrorCode]>
     {
-        // TODO: implement
+        // We might have a potential command collision
+        if (this.m_PluginCommandCollisions.has(parsedCommand.Tag))
+        {
+            const commands:Command[] = <Command[]>this.m_PluginCommandCollisions.get(parsedCommand.Tag);
+            if (commands.includes(parsedCommand.Command))
+            {
+                // We have a tag alias and command collision. This means we can't use this command without using the tag.
+                return [ExecuteCommandResult.STOP, CommandErrorCode.PLUGIN_COMMAND_COLLISION];
+            }
+        }
 
-        return [ExecuteCommandResult.STOP, CommandErrorCode.SUCCESS];
+        const plugins:Plugin[] = this.m_PluginManager.GetPlugins<Plugin>();
+        for (let plugin of plugins)
+        {
+            const isThisPlugin:boolean = parsedCommand.Tag === plugin.m_Tag || parsedCommand.Tag === plugin.m_TagAlias;
+            if (isThisPlugin && plugin.IsCommand(parsedCommand.Command))
+            {
+                // TODO: Check if the plugin is disabled
+                //return [ExecuteCommandResult.STOP, CommandErrorCode.PLUGIN_DISABLED];
+
+                return await plugin.TryExecuteCommand(messageInfo, parsedCommand);
+            }
+        }
+
+        return [ExecuteCommandResult.STOP, CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND];
     }
 
     private GetErrorContext(errorCode:CommandErrorCode, parsedCommand:ParsedCommandInfo):any
@@ -257,11 +332,16 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
             context = { tag:parsedCommand.Tag, command:parsedCommand.Command };
             break;
         case CommandErrorCode.PLUGIN_DISABLED:
-            context = { command:parsedCommand.Tag };
+            context = { tag:parsedCommand.Tag };
             break;
         case CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS:
             break;
         case CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS:
+            break;
+        case CommandErrorCode.GUILD_ONLY_COMMAND:
+            break;
+        case CommandErrorCode.PLUGIN_COMMAND_COLLISION:
+            context = { tag:parsedCommand.Tag, command:parsedCommand.Command };
             break;
         }
 
@@ -289,7 +369,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
             if (context == undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
-            message = `Incorrect usage of command ${context.command}. Please see the usage to learn how to properly use this command.\nJust Type: \`!usage ${context.tag} ${context.command}\``;
+            message = `Incorrect usage of command \`${context.command}\`. Please see the usage to learn how to properly use this command.\nJust Type: \`!usage ${context.tag} ${context.command}\``;
             break;
         case CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND:
             if (context == undefined)
@@ -311,6 +391,12 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
             break;
         case CommandErrorCode.GUILD_ONLY_COMMAND:
             message = `You can only execute this command from a guild.`;
+            break;
+        case CommandErrorCode.PLUGIN_COMMAND_COLLISION:
+            if (context == undefined)
+                this.Logger.Error(`No context was provided for Error ${errorCode}`);
+
+            message = `There is more than one plugin with the tag alias \`${context.tag}\` and command \`${context.command}\` combination. Please use the tag to execute this command.`;
             break;
         }
 
