@@ -1,15 +1,20 @@
-import { BotAPI } from "../../bot/botapi";
+import { ExtendedBotAPI } from "../../bot/botapi";
 import { DiscordChannel } from '../../discord/discordtypes';
-import { Command, CommandAPI } from "../../command/commandapi";
+import { Command, CommandAPI, Tag, TagAlias, CommandErrorCode } from "../../command/commandapi";
 import { CommandUtils } from "../../utils/commandutils";
+import { Plugin } from '../../plugins/plugin';
 
 export class HelpCommandUtils
 {
-    public static async GetHelp(commandAPI:CommandAPI, bot:BotAPI, channel:DiscordChannel, command:Command, modifier?:Function):Promise<void>
+    public static async GetHelp(commandAPI:CommandAPI, bot:ExtendedBotAPI, channel:DiscordChannel, command:Command, modifier?:Function):Promise<CommandErrorCode>
     {
-        const ApplyModifier = (message:string):string => {
+        const ApplyModifier = (message:string):string => 
+        {
             if (modifier != undefined)
+            {
                 return modifier(message);
+            }
+
             return message;
         }
 
@@ -21,7 +26,20 @@ export class HelpCommandUtils
         {
             await bot.SendMessage(channel, ApplyModifier(this.GetHelpBot(commandAPI)));
 
-            // TODO: implement plugin help here
+            const plugins:Plugin[] = await bot.GetPlugins();
+            plugins.forEach(async (plugin:Plugin) =>
+            {
+                let pluginHelp:string = this.GetHelpPluginHeader(plugin);
+
+                let commands:string[] = CommandUtils.GetCommandHelp(plugin.m_CommandRegistry, plugin.m_Tag);
+
+                commands.forEach((command:string) => 
+                {
+                    pluginHelp += command + '\n';
+                });
+
+                await bot.SendMessage(channel, ApplyModifier(pluginHelp));
+            });
         }
         else if (command === 'bot')
         {
@@ -29,12 +47,46 @@ export class HelpCommandUtils
         }
         else if (command === 'plugin' || command === 'plugins' || command === 'tags')
         {
-            await bot.SendMessage(channel, ApplyModifier(this.GetHelpPluginTags()));
+            await bot.SendMessage(channel, ApplyModifier(await this.GetHelpPluginTags(bot)));
         }
         else
         {
-            // TODO: implement plugin help here
+            if (bot.DoesPluginTagAliasHaveCollision(command))
+            {
+                return CommandErrorCode.PLUGIN_TAG_COLLISION;
+            }
+
+            let foundPlugin:boolean = false;
+            const plugins:Plugin[] = await bot.GetPlugins();
+
+            for (let plugin of plugins)
+            {
+                if (command === plugin.m_Tag || command === plugin.m_TagAlias)
+                {
+                    foundPlugin = true;
+
+                    let pluginHelp:string = this.GetHelpPluginHeader(plugin);
+
+                    let commands:string[] = CommandUtils.GetCommandHelp(plugin.m_CommandRegistry, plugin.m_Tag);
+
+                    commands.forEach((command:string) => 
+                    {
+                        pluginHelp += command + '\n';
+                    });
+
+                    await bot.SendMessage(channel, ApplyModifier(pluginHelp));
+
+                    break;
+                }
+            }
+
+            if (!foundPlugin)
+            {
+                return CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG;
+            }
         }
+
+        return CommandErrorCode.SUCCESS;
     }
 
     private static GetHelpBot(commandAPI:CommandAPI):string
@@ -70,10 +122,29 @@ export class HelpCommandUtils
         return helpStr;
     }
 
-    private static GetHelpPluginTags():string
+    private static async GetHelpPluginTags(bot:ExtendedBotAPI):Promise<string>
     {
-        // TODO: implement
+        let helpStr:string = '__**Plugin Tags:**__\n\n';
+        helpStr += 'Use `!help <plugintag>` or `!help <pluginalias>` to see which commands a plugin has.\n';
+        helpStr += 'To see which commands the bot has, type `!help bot`\n';
+        helpStr += 'To see all commands available, type `!help all`\n\n';
 
-        return '';
+        const plugins:Plugin[] = await bot.GetPlugins();
+        for (let plugin of plugins)
+        {
+            // TOOD: handle disabled plugins
+            helpStr += `**[${plugin.m_Name}]** Tag: \`${plugin.m_Tag}\` Alias: \`${plugin.m_TagAlias}\`\n`;
+        }
+
+        return helpStr;
+    }
+
+    private static GetHelpPluginHeader(plugin:Plugin):string
+    {
+        let helpStr:string = `\n__**${plugin.m_Name} Commands:**__\n`;
+        helpStr += `**Tag:** ${plugin.m_Tag}\n`;
+        helpStr += `**Alias:** ${plugin.m_TagAlias}\n`;
+        helpStr += `**Usage:** \`!usage ${plugin.m_Tag} <command>\` or \`!usage ${plugin.m_TagAlias} <command>\`\n\n`;
+        return helpStr;
     }
 }

@@ -8,6 +8,7 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
 {
     public Logger:Logger;
     public m_Bot:BotAPI;
+    public m_Name:string;
     public m_Tag:Tag;
     public m_TagAlias:TagAlias;
     public m_CommandRegistry:CommandRegistry;

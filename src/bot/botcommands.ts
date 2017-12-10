@@ -143,8 +143,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     @BotCommand('Provides the basic help page', { name:'help' })
     private async _Help_(messageInfo:MessageInfo):Promise<CommandErrorCode>
     {
-        await HelpCommandUtils.GetHelp(this, this.m_Bot, messageInfo.Channel, '');
-        return CommandErrorCode.SUCCESS;
+        return await HelpCommandUtils.GetHelp(this, this.m_Bot, messageInfo.Channel, '');
     }
 
     @Usage(
@@ -156,8 +155,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     @BotCommand('Provides the help page for a specific part of the bot or its plugins', { name:'help' })
     private async _HelpPage_(messageInfo:MessageInfo, pagename:string):Promise<CommandErrorCode>
     {
-        await HelpCommandUtils.GetHelp(this, this.m_Bot, messageInfo.Channel, pagename);
-        return CommandErrorCode.SUCCESS;
+        return await HelpCommandUtils.GetHelp(this, this.m_Bot, messageInfo.Channel, pagename);
     }
 
     @Usage(

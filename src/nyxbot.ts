@@ -4,7 +4,7 @@ import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './bot/botapi';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
-import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode, Command, Tag } from './command/commandapi';
+import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode, Command, Tag, TagAlias } from './command/commandapi';
 import { ParsedCommandInfo, InputParserUtils } from './utils/inputparserutils';
 import { Plugin } from './plugins/plugin';
 import { PluginManager } from './plugins/pluginmanager';
@@ -92,6 +92,17 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     ///////////////////////////////////////////////////////////
     /// EXTENDED BOT API
     ///////////////////////////////////////////////////////////
+
+    public async GetPlugins():Promise<Plugin[]>
+    {
+        return this.m_PluginManager.GetPlugins<Plugin>();
+    }
+
+    public DoesPluginTagAliasHaveCollision(tagAlias:TagAlias):boolean
+    {
+        return this.m_PluginCommandCollisions.has(tagAlias);
+    }
+
     public async JoinVoiceChannel(channel:DiscordVoiceChannel):Promise<void>
     {
         if (this.m_VoiceConnection == undefined)
@@ -154,10 +165,11 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         await this.m_BotCommands.Initialize(this, this.Logger);
 
         this.m_PluginManager.ScanSubdirs('./plugins/');
-        this.m_PluginManager.LoadPlugins({ OnComplete:(plugins:Plugin[]) => 
+        this.m_PluginManager.LoadPlugins({ OnComplete:(plugins:Plugin[], names:string[]) => 
         {
-            plugins.forEach((plugin:Plugin):void =>
+            plugins.forEach((plugin:Plugin, index:number):void =>
             {
+                plugin.m_Name = names[index];
                 plugin.Initialize(this, this.Logger);
 
                 this.Logger.Debug(`Loaded plugin ${plugin.m_Tag}`);
@@ -343,6 +355,12 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         case CommandErrorCode.PLUGIN_COMMAND_COLLISION:
             context = { tag:parsedCommand.Tag, command:parsedCommand.Command };
             break;
+        case CommandErrorCode.PLUGIN_TAG_COLLISION:
+            context = { tag:parsedCommand.Command };
+            break;
+        case CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG:
+            context = { tag:parsedCommand.Command };
+            break;
         }
 
         return context;
@@ -398,6 +416,19 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
             message = `There is more than one plugin with the tag alias \`${context.tag}\` and command \`${context.command}\` combination. Please use the tag to execute this command.`;
             break;
+        case CommandErrorCode.PLUGIN_TAG_COLLISION:
+            if (context == undefined)
+                this.Logger.Error(`No context was provided for Error ${errorCode}`);
+
+            message = `There is more than one plugin with the tag alias \`${context.tag}\`. Please use the tag instead.`;
+            break;
+        case CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG:
+            if (context == undefined)
+                this.Logger.Error(`No context was provided for Error ${errorCode}`);
+
+            message = `There is no plugin with tag or tag alias \`${context.tag}\`. For a list of plugins type \`!help plugins\``;
+            break;
+
         }
 
         if (message !== '')

@@ -1,4 +1,6 @@
 import { DiscordChannel, DiscordVoiceChannel, DiscordGuild, DiscordUser, DiscordGuildMember } from '../discord/discordtypes';
+import { Plugin } from '../plugins/plugin';
+import { TagAlias } from '../command/commandapi';
 
 export interface BotAPI
 {
@@ -12,6 +14,8 @@ export interface BotAPI
 // This is inteded solely for the bot. Do not call these outside of bot commands.
 export interface ExtendedBotAPI extends BotAPI
 {
+    GetPlugins():Promise<Plugin[]>;
+    DoesPluginTagAliasHaveCollision(tagAlias:TagAlias):boolean;
     JoinVoiceChannel(channel:DiscordVoiceChannel):Promise<void>;
     LeaveVoiceChannel():Promise<void>;
     SetAvatar(image:Buffer | string):Promise<void>;
