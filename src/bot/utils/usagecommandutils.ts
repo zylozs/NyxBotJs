@@ -43,8 +43,7 @@ export class UsageCommandUtils
 
             for (let plugin of plugins)
             {
-                const isThisPlugin:boolean = tag === plugin.m_Tag || tag === plugin.m_TagAlias;
-                if (isThisPlugin && plugin.IsCommand(command))
+                if (plugin.IsThisPlugin(tag) && plugin.IsCommand(command))
                 {
                     pluginFound = true;
 

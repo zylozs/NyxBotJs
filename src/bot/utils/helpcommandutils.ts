@@ -61,7 +61,7 @@ export class HelpCommandUtils
 
             for (let plugin of plugins)
             {
-                if (command === plugin.m_Tag || command === plugin.m_TagAlias)
+                if (plugin.IsThisPlugin(command))
                 {
                     foundPlugin = true;
 
@@ -82,7 +82,7 @@ export class HelpCommandUtils
 
             if (!foundPlugin)
             {
-                return CommandError.New(CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG);
+                return CommandError.New(CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG, { tag:command });
             }
         }
 
@@ -129,11 +129,29 @@ export class HelpCommandUtils
         helpStr += 'To see which commands the bot has, type `!help bot`\n';
         helpStr += 'To see all commands available, type `!help all`\n\n';
 
+        let disabledPlugins:string[] = [];
         const plugins:Plugin[] = await bot.GetPlugins();
+
         for (let plugin of plugins)
         {
-            // TOOD: handle disabled plugins
-            helpStr += `**[${plugin.m_Name}]** Tag: \`${plugin.m_Tag}\` Alias: \`${plugin.m_TagAlias}\`\n`;
+            const output:string = `**[${plugin.m_Name}]** Tag: \`${plugin.m_Tag}\` Alias: \`${plugin.m_TagAlias}\`\n`;
+            if (plugin.IsDisabled())
+            {
+                disabledPlugins.push(output);
+            }
+            else
+            {
+                helpStr += output;
+            }
+        }
+
+        if (disabledPlugins.length > 0)
+        {
+            helpStr += '\n__**Disabled Plugins:**__\n';
+            for (let plugin of disabledPlugins)
+            {
+                helpStr += plugin;
+            }
         }
 
         return helpStr;

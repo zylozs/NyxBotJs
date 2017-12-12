@@ -4,6 +4,13 @@ import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { CommandUtils } from '../utils/commandutils';
 import { InputParserUtils, ParsedCommandInfo } from '../utils/inputparserutils';
 
+export enum PluginDisabledState
+{
+    ENABLED = 0,
+    DISABLED_TEMPORARY,
+    DISABLED_PERMANENT 
+}
+
 export abstract class Plugin implements CommandAPI, LoggingEnabled
 {
     public Logger:Logger;
@@ -11,9 +18,18 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
     public m_Name:string;
     public m_Tag:Tag;
     public m_TagAlias:TagAlias;
+    public m_Config:any;
     public m_CommandRegistry:CommandRegistry;
     public m_DefaultParser:Function;
     public m_DefaultParserType:ParamParserType;
+
+    private m_DisabledState:PluginDisabledState;
+
+    public IsDisabled():boolean { return this.m_DisabledState != PluginDisabledState.ENABLED; }
+    public GetDisabledState():PluginDisabledState { return this.m_DisabledState; }
+    public SetDisabledState(value:PluginDisabledState):void { this.m_DisabledState = value; }
+
+    public IsThisPlugin(tag:Tag | TagAlias) { return tag === this.m_Tag || tag === this.m_TagAlias; }
 
     public IsCommand(command:Command):boolean
     {
@@ -33,6 +49,7 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
         this.m_TagAlias = '';
         this.m_DefaultParser = CommandUtils.ParamParserSpaces;
         this.m_DefaultParserType = ParamParserType.SPACES;
+        this.m_DisabledState = PluginDisabledState.ENABLED;
 
         CommandUtils.LoadCommandRegistry(this);
 

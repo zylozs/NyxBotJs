@@ -14,10 +14,12 @@ export interface BotAPI
 // This is inteded solely for the bot. Do not call these outside of bot commands.
 export interface ExtendedBotAPI extends BotAPI
 {
-    GetPlugins():Promise<Plugin[]>;
+    AddDisabledPlugin(name:string):Promise<void>;
     DoesPluginTagAliasHaveCollision(tagAlias:TagAlias):boolean;
+    GetPlugins():Promise<Plugin[]>;
     JoinVoiceChannel(channel:DiscordVoiceChannel):Promise<void>;
     LeaveVoiceChannel():Promise<void>;
+    RemoveDisabledPlugin(name:string):Promise<void>;
     SetAvatar(image:Buffer | string):Promise<void>;
 }
 

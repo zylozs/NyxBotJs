@@ -6,12 +6,13 @@ import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
 import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode, Command, Tag, TagAlias, CommandError } from './command/commandapi';
 import { ParsedCommandInfo, InputParserUtils } from './utils/inputparserutils';
-import { Plugin } from './plugins/plugin';
+import { Plugin, PluginDisabledState } from './plugins/plugin';
 import { PluginManager } from './plugins/pluginmanager';
 
 const BotConfig = require('./config.json');
 const { ClientEvent } = EventListenerUtils;
 const commandLineArgs = require('command-line-args');
+const fs = require('fs');
 
 const optionDefinitions = [
     { name: 'verbose', alias: 'v', type:Boolean }
@@ -93,14 +94,33 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     /// EXTENDED BOT API
     ///////////////////////////////////////////////////////////
 
-    public async GetPlugins():Promise<Plugin[]>
+    public async AddDisabledPlugin(name:string):Promise<void>
     {
-        return this.m_PluginManager.GetPlugins<Plugin>();
+        if (!BotConfig.disabledPlugins)
+        {
+            BotConfig.disabledPlugins = [];
+        }
+
+        (<string[]>BotConfig.disabledPlugins).push(name);
+
+        try
+        {
+            fs.writeFile('./config.json', JSON.stringify(BotConfig));
+        }
+        catch(e)
+        {
+            this.Logger.Error(`Failed to disable plugin ${name} in the config file. Error: ${e}`);
+        }
     }
 
     public DoesPluginTagAliasHaveCollision(tagAlias:TagAlias):boolean
     {
         return this.m_PluginCommandCollisions.has(tagAlias);
+    }
+
+    public async GetPlugins():Promise<Plugin[]>
+    {
+        return this.m_PluginManager.GetPlugins<Plugin>();
     }
 
     public async JoinVoiceChannel(channel:DiscordVoiceChannel):Promise<void>
@@ -146,6 +166,33 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         // TODO: add stop "sound queue" events
     }
 
+    public async RemoveDisabledPlugin(name:string):Promise<void>
+    {
+        if (!BotConfig.disabledPlugins)
+        {
+            this.Logger.Error(`You can't remove plugin ${name} in the config because it is not there.`);
+            return;
+        }
+
+        let index:number = (<string[]>BotConfig.disabledPlugins).indexOf(name);
+        if (index == -1)
+        {
+            this.Logger.Error(`You can't enable plugin ${name} in the config because it is not there.`);
+            return;
+        }
+
+        (<string[]>BotConfig.disabledPlugins).splice(index, 1);
+        
+        try
+        {
+            fs.writeFile('./config.json', JSON.stringify(BotConfig));
+        }
+        catch(e)
+        {
+            this.Logger.Error(`Failed to enable plugin ${name} in the config file. Error: ${e}`);
+        }
+    }
+
     public async SetAvatar(image:Buffer | string):Promise<void>
     {
         this.Logger.Debug('Setting bot avatar!');
@@ -164,13 +211,26 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
         await this.m_BotCommands.Initialize(this, this.Logger);
 
+        let disabledPlugins:string[] = [];
+
+        if (BotConfig.disabledPlugins)
+        {
+            disabledPlugins = BotConfig.disabledPlugins;
+        }
+
         this.m_PluginManager.ScanSubdirs('./plugins/');
-        this.m_PluginManager.LoadPlugins({ OnComplete:(plugins:Plugin[], names:string[]) => 
+        this.m_PluginManager.LoadPlugins({ OnComplete:(plugins:Plugin[], configs:any[], names:string[]) => 
         {
             plugins.forEach((plugin:Plugin, index:number):void =>
             {
                 plugin.m_Name = names[index];
+                plugin.m_Config = configs[index];
                 plugin.Initialize(this, this.Logger);
+
+                if (disabledPlugins.includes(plugin.m_Name))
+                {
+                    plugin.SetDisabledState(PluginDisabledState.DISABLED_PERMANENT);
+                }
 
                 this.Logger.Debug(`Loaded plugin ${plugin.m_Tag}`);
                 console.log(`Loaded plugin ${plugin.m_Tag}`);
@@ -312,17 +372,18 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         const plugins:Plugin[] = this.m_PluginManager.GetPlugins<Plugin>();
         for (let plugin of plugins)
         {
-            const isThisPlugin:boolean = parsedCommand.Tag === plugin.m_Tag || parsedCommand.Tag === plugin.m_TagAlias;
-            if (isThisPlugin && plugin.IsCommand(parsedCommand.Command))
+            if (plugin.IsThisPlugin(parsedCommand.Tag) && plugin.IsCommand(parsedCommand.Command))
             {
-                // TODO: Check if the plugin is disabled
-                //return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.PLUGIN_DISABLED)];
+                if (plugin.IsDisabled())
+                {
+                    return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.PLUGIN_DISABLED)];
+                }
 
                 return await plugin.TryExecuteCommand(messageInfo, parsedCommand);
             }
         }
 
-        return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND)];
+        return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG)];
     }
 
     private GetErrorContext(error:CommandError, parsedCommand:ParsedCommandInfo):any
@@ -376,7 +437,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
             AddContext('tag', parsedCommand.Command);
             break;
         case CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG:
-            AddContext('tag', parsedCommand.Command);
+            AddContext('tag', parsedCommand.Tag);
             break;
         }
 

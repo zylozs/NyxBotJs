@@ -1,5 +1,5 @@
 {
-    "name": "testplugin",
+    "name": "Test Plugin",
     "file": "testplugin.js",
     "class": "TestPlugin"
 }

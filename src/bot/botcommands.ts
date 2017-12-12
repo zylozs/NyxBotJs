@@ -7,7 +7,9 @@ import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
 import { HelpCommandUtils } from './utils/helpcommandutils';
 import { UsageCommandUtils } from './utils/usagecommandutils';
-import { ImageUtils } from "../utils/imageutils";
+import { ImageUtils } from '../utils/imageutils';
+import { Plugin, PluginDisabledState } from '../plugins/plugin';
+import { TypeUtils } from "../utils/typeutils";
 
 export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEnabled
 {
@@ -118,6 +120,143 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         catch (error)
         {
             return CommandError.New(CommandErrorCode.INSUFFICIENT_BOT_PERMISSIONS);
+        }
+
+        return CommandError.Success();
+    }
+
+    @Usage(
+       `Disables the plugin with the tag or alias you provide temporarily. This is equivalent to calling disableplugin with false for ispermanent. This can only be done by an admin.
+        \`!disableplugin <tag>\`
+        **Example with tag:** \`!disableplugin chatmod\`
+        **Example with alias:** \`!disableplugin cm\``
+    )
+    @BotCommand('Disables a plugin temporarily', { name:'disableplugin' })
+    private async _DisablePluginTemporary_(messageInfo:MessageInfo, tag:Tag):Promise<CommandError>
+    {
+        return await this._DisablePlugin_(messageInfo, tag, false);
+    }
+
+    @Usage(
+       `Disables the plugin with the tag or alias you provide. If you specified true to ispermanent, it will be permanent and persist between bot sessions. If you specified false to ispermanent, it will only last until the bot is restarted or you re-enable the plugin. True/False are not case sensitive for ispermanent. This can only be done by an admin.
+        \`!disableplugin <tag> <ispermanent>\`
+        **Example with tag:** \`!disableplugin chatmod false\`
+        **Example with tag:** \`!disableplugin chatmod FALSE\`
+        **Example with alias:** \`!disableplugin cm true\`
+        **Example with alias:** \`!disableplugin cm TRUE\``
+    )
+    @BotCommand('Disables a plugin temporarily or permanently', { name:'disableplugin' })
+    private async _DisablePlugin_(messageInfo:MessageInfo, tag:Tag, isPermanent:boolean):Promise<CommandError>
+    {
+        // Convert the string to a proper bool. This is temporary for now.
+        let temp:boolean | null = TypeUtils.ToBool(isPermanent);
+
+        if (temp == null)
+        {
+            return CommandError.New(CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE);
+        }
+
+        isPermanent = temp;
+
+        const plugins:Plugin[] = await this.m_Bot.GetPlugins();
+        for (let plugin of plugins)
+        {
+            if (plugin.IsThisPlugin(tag))
+            {
+                if (isPermanent)
+                {
+                    if (plugin.GetDisabledState() == PluginDisabledState.DISABLED_PERMANENT)
+                    {
+                        return CommandError.Custom(`Plugin \`${plugin.m_Tag}\` is already permanently disabled.`);
+                    }
+
+                    plugin.SetDisabledState(PluginDisabledState.DISABLED_PERMANENT);
+
+                    await this.m_Bot.AddDisabledPlugin(plugin.m_Name);
+
+                    await this.m_Bot.SendMessage(messageInfo.Channel, `Plugin \`${plugin.m_Tag}\` is now permanently disabled!`);
+                }
+                else
+                {
+                    if (plugin.IsDisabled())
+                    {
+                        return CommandError.Custom(`Plugin \`${plugin.m_Tag}\` is already disabled.`);
+                    }
+
+                    plugin.SetDisabledState(PluginDisabledState.DISABLED_TEMPORARY);
+                    await this.m_Bot.SendMessage(messageInfo.Channel, `Plugin \`${plugin.m_Tag}\` is now temporarily disabled!`);
+                }
+            }
+        }
+
+        return CommandError.Success();
+    }
+
+    @Usage(
+       `Enables the plugin with the tag or alias you provide temporarily. This is equivalent to calling enableplugin with false for ispermanent. This can only be done by an admin.
+        \`!enableplugin <tag>\`
+        **Example with tag:** \`!enableplugin chatmod\`
+        **Example with alias:** \`!enableplugin cm\``
+    )
+    @BotCommand('Enables a plugin temporarily', { name:'enableplugin' })
+    private async _EnablePluginTemporary_(messageInfo:MessageInfo, tag:Tag):Promise<CommandError>
+    {
+        return await this._EnablePlugin_(messageInfo, tag, false);
+    }
+
+    @Usage(
+       `Enables the plugin with the tag or alias you provide. If you specified true to ispermanent, it will be permanent and persist between bot sessions. If you specified false to ispermanent, it will only last until the bot is restarted or you disable the plugin again. True/False are not case sensitive for ispermanent. This can only be done by an admin.
+        \`!enableplugin <tag> <ispermanent>\`
+        **Example with tag:** \`!enableplugin chatmod false\`
+        **Example with tag:** \`!enableplugin chatmod FALSE\`
+        **Example with alias:** \`!enableplugin cm true\`
+        **Example with alias:** \`!enableplugin cm TRUE\``
+    )
+    @BotCommand('Enables a plugin temporarily or permanently', { name:'enableplugin' })
+    private async _EnablePlugin_(messageInfo:MessageInfo, tag:Tag, isPermanent:boolean):Promise<CommandError>
+    {
+        // Convert the string to a proper bool. This is temporary for now.
+        let temp:boolean | null = TypeUtils.ToBool(isPermanent);
+
+        if (temp == null)
+        {
+            return CommandError.New(CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE);
+        }
+
+        isPermanent = temp;
+
+        const plugins:Plugin[] = await this.m_Bot.GetPlugins();
+        for (let plugin of plugins)
+        {
+            if (plugin.IsThisPlugin(tag))
+            {
+                if (plugin.GetDisabledState() == PluginDisabledState.ENABLED)
+                {
+                    return CommandError.Custom(`Plugin \`${plugin.m_Tag}\` is already enabled.`);
+                }
+
+                if (isPermanent)
+                {
+                    const wasPermanent:boolean = plugin.GetDisabledState() == PluginDisabledState.DISABLED_PERMANENT;
+
+                    plugin.SetDisabledState(PluginDisabledState.ENABLED);
+
+                    if (wasPermanent)
+                    {
+                        await this.m_Bot.RemoveDisabledPlugin(plugin.m_Name);
+                        await this.m_Bot.SendMessage(messageInfo.Channel, `Plugin \`${plugin.m_Tag}\` is now permanently enabled!`);
+                    }
+                    else
+                    {
+                        await this.m_Bot.SendMessage(messageInfo.Channel, `Plugin \`${plugin.m_Tag}\` is now enabled!`);
+                    }
+                }
+                else
+                {
+                    plugin.SetDisabledState(PluginDisabledState.ENABLED);
+                    await this.m_Bot.SendMessage(messageInfo.Channel, `Plugin \`${plugin.m_Tag}\` is now enabled!`);
+                }
+            }
         }
 
         return CommandError.Success();

@@ -12,7 +12,7 @@ export type PluginLoadOptions =
     // Error handler
     OnError?:(error:Error, info:any) => void;
     // When its done loading all the plugins
-    OnComplete?:(pluginInstances:any[], pluginNames:string[]) => void;
+    OnComplete?:(pluginInstances:any[], pluginConfigs:any[], pluginNames:string[]) => void;
 };
 
 enum PluginConfigConstants
@@ -30,12 +30,14 @@ class PluginModule
     private m_Filename:string;
     private m_ClassType:string;
     private m_PluginFactory:Function;
+    private m_Config:any;
 
-    public constructor(dir:string, filename:string, classType:string)
+    public constructor(dir:string, filename:string, classType:string, config:any)
     {
         this.m_BaseDirectory = dir;
         this.m_Filename = filename;
         this.m_ClassType = classType;
+        this.m_Config = config;
 
         this.LoadPluginFactory();
     }
@@ -67,14 +69,14 @@ class PluginModule
         return this.m_PluginFactory != undefined ? this.m_PluginFactory() : null;
     }
 
-    public static Factory(dir:any, file:string, classType:string):FactoryFunction
+    public static Factory(dir:any, file:string, classType:string, config:any):FactoryFunction
     {
-        let plugin:PluginModule = new PluginModule(dir, file, classType);
+        let plugin:PluginModule = new PluginModule(dir, file, classType, config);
 
-        let factory:FactoryFunction = (callback:(error:Error | null, instance:any)=>any):any =>
+        let factory:FactoryFunction = (callback:(error:Error | null, instance:any, config:any)=>any):any =>
         {
             let pluginInstance:any = plugin.PluginFactory();
-            return callback(null, pluginInstance);
+            return callback(null, pluginInstance, config);
         }
 
         return factory;
@@ -85,15 +87,19 @@ export class PluginManager
 {
     private m_Plugins:Map<PluginName, FactoryFunction>;
     private m_CachedPluginInstances:Map<PluginName, any>;
+    private m_CachedPluginConfigs:Map<PluginName, any>;
 
     public constructor()
     {
         this.m_Plugins = new Map();
         this.m_CachedPluginInstances = new Map();
+        this.m_CachedPluginConfigs = new Map();
     }
 
     public GetPlugin<T>(name:string):T { return <T>this.m_CachedPluginInstances.get(name); }
     public GetPlugins<T>():T[] { return <T[]>Array.from(this.m_CachedPluginInstances.values()); }
+    public GetPluginConfig(name:string):any { return this.m_CachedPluginConfigs.get(name); }
+    public GetPluginConfigs():any[] { return Array.from(this.m_CachedPluginConfigs.values()); }
 
     public ScanSubdirs(dirs:string | string[]):this
     {
@@ -143,14 +149,17 @@ export class PluginManager
             const error:Error | null = pluginInstances.length == 0 ? new Error('No plugins were loaded.') : null;
             let instances:any[] = [];
             let names:string[] = [];
+            let configs:any[] = [];
 
             pluginInstances.forEach((instance:any)=>
             {
                 instances.push(instance.instance);
                 names.push(instance.name);
+                configs.push(instance.config);
 
                 // Add the new plugin instances to the cache
                 this.m_CachedPluginInstances.set(instance.name, instance.instance);
+                this.m_CachedPluginConfigs.set(instance.name, instance.config);
             });
 
             if (options != undefined)
@@ -162,7 +171,7 @@ export class PluginManager
 
                 if (options.OnComplete != undefined)
                 {
-                    options.OnComplete(instances, names);
+                    options.OnComplete(instances, configs, names);
                 }
             }
         };
@@ -222,7 +231,7 @@ export class PluginManager
         if (factory != undefined)
         {
             let info:any = { name:name };
-            return factory((error:Error | null, instance:any):any =>
+            return factory((error:Error | null, instance:any, config:any):any =>
             {
                 if (error != null && options.OnError != undefined)
                 {
@@ -230,7 +239,7 @@ export class PluginManager
                     return null;
                 }
 
-                return { instance:instance, name:name };
+                return { instance:instance, name:name, config:config};
             });
         }
         else
@@ -259,7 +268,7 @@ export class PluginManager
             let pluginFile:string = config[PluginConfigConstants.FILE];
             let pluginClass:string = config[PluginConfigConstants.CLASS];
 
-            this.RegisterPlugin(pluginName, PluginModule.Factory(dir, pluginFile, pluginClass));
+            this.RegisterPlugin(pluginName, PluginModule.Factory(dir, pluginFile, pluginClass, config));
         }
     }
 }
