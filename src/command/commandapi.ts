@@ -21,6 +21,13 @@ export type CommandMetaData =
     Usage:string;
 };
 
+export type PropertyMetaData = 
+{
+    Type:string;
+    Index:number;
+    ConvertFunction:(value:any) => any | null;
+};
+
 export enum ParamParserType
 {
     SPACES = 0,
@@ -49,7 +56,8 @@ export enum CommandErrorCode
     PLUGIN_COMMAND_COLLISION,
     PLUGIN_TAG_COLLISION,
     UNRECOGNIZED_PLUGIN_TAG,
-    CUSTOM
+    CUSTOM,
+    INVALID_ARGUMENT_TYPE
 }
 
 export class CommandError

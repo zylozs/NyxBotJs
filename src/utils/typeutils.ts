@@ -16,10 +16,17 @@ export class TypeUtils
             {
                 return false;
             }
-
-            return null;
         }
 
         return null;
+    }
+
+    public static ToNum(value:any):number | null
+    {
+        const temp:any = +value;
+        if (temp == NaN)
+            return null;
+
+        return <number>temp;
     }
 }

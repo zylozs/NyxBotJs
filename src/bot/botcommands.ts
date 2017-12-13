@@ -3,7 +3,7 @@ import { BotCommandAPI, CommandAPI, Command, CommandRegistry, ParamParserType, E
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './botapi';
 import { DiscordGuildMember, DiscordVoiceChannel, DiscordUser, DiscordSnowflake, DiscordGuildChannel, Collection } from '../discord/discordtypes';
-import { PluginCommand, BotCommand, Usage } from '../command/commanddecorator';
+import { PluginCommand, BotCommand, Usage, ToBool } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
 import { HelpCommandUtils } from './utils/helpcommandutils';
 import { UsageCommandUtils } from './utils/usagecommandutils';
@@ -146,18 +146,8 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example with alias:** \`!disableplugin cm TRUE\``
     )
     @BotCommand('Disables a plugin temporarily or permanently', { name:'disableplugin' })
-    private async _DisablePlugin_(messageInfo:MessageInfo, tag:Tag, isPermanent:boolean):Promise<CommandError>
+    private async _DisablePlugin_(messageInfo:MessageInfo, tag:Tag, @ToBool isPermanent:boolean):Promise<CommandError>
     {
-        // Convert the string to a proper bool. This is temporary for now.
-        let temp:boolean | null = TypeUtils.ToBool(isPermanent);
-
-        if (temp == null)
-        {
-            return CommandError.New(CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE);
-        }
-
-        isPermanent = temp;
-
         const plugins:Plugin[] = await this.m_Bot.GetPlugins();
         for (let plugin of plugins)
         {
@@ -213,18 +203,8 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example with alias:** \`!enableplugin cm TRUE\``
     )
     @BotCommand('Enables a plugin temporarily or permanently', { name:'enableplugin' })
-    private async _EnablePlugin_(messageInfo:MessageInfo, tag:Tag, isPermanent:boolean):Promise<CommandError>
+    private async _EnablePlugin_(messageInfo:MessageInfo, tag:Tag, @ToBool isPermanent:boolean):Promise<CommandError>
     {
-        // Convert the string to a proper bool. This is temporary for now.
-        let temp:boolean | null = TypeUtils.ToBool(isPermanent);
-
-        if (temp == null)
-        {
-            return CommandError.New(CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE);
-        }
-
-        isPermanent = temp;
-
         const plugins:Plugin[] = await this.m_Bot.GetPlugins();
         for (let plugin of plugins)
         {

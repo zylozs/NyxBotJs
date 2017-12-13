@@ -439,6 +439,15 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         case CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG:
             AddContext('tag', parsedCommand.Tag);
             break;
+        case CommandErrorCode.INVALID_ARGUMENT_TYPE:
+            // Context should always be provided by the one returning this error as we can't possibly deduce what to use
+            // context: type      - The type that was expected (as a string)
+            // context: arg       - The arg name that was not properly handled by the user
+            // context: value     - The value the user gave for the arg
+            AddContext('type', 'NULL');
+            AddContext('arg', 'NULL');
+            AddContext('value', 'NULL');
+            break;
         }
 
         return context;
@@ -511,6 +520,11 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
             message = `There is no plugin with tag or tag alias \`${context.tag}\`. For a list of plugins type \`!help plugins\``;
             break;
+        case CommandErrorCode.INVALID_ARGUMENT_TYPE:
+            if (context == undefined)
+                this.Logger.Error(`No context was provided for Error ${errorCode}`);
+
+            message = `Invalid type for argument \`${context.arg}\`. Expected a \`${context.type}\` but you gave it \`${context.value}\`.`;
         }
 
         if (message !== '')

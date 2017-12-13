@@ -1,5 +1,5 @@
 import { CommandInfo } from "../command/commanddecorator";
-import { Command, CommandMetaData, ParamParserType, CommandRegistry, CommandAPI, Tag } from "../command/commandapi";
+import { Command, CommandMetaData, ParamParserType, CommandRegistry, CommandAPI, Tag, PropertyMetaData } from "../command/commandapi";
 import { Logger } from '../utils/loggerutils';
 const GetParameterNames = require('get-parameter-names');
 
@@ -7,6 +7,7 @@ export class CommandUtils
 {
     private static m_CommandPrefix:string = '!';
     public static COMMAND_REGISTRY_KEY:string = 'commandregistry';
+    public static PROPERTY_METADATA_KEY:string = 'propertymetadata';
 
     public static GetCommandPrefix():string { return this.m_CommandPrefix; }
     public static SetCommandPrefix(value:string):void { this.m_CommandPrefix = value; }
@@ -89,6 +90,22 @@ export class CommandUtils
 
         commandRegistry.push(temp);
         Reflect.defineMetadata(CommandUtils.COMMAND_REGISTRY_KEY, commandRegistry, target);
+    }
+
+    public static RegisterPropertyMetaData(target:Object, key:string | symbol, parameterIndex:number, type:string, convertFunc:(value:any) => any | null)
+    {
+        const propertyMetaData:PropertyMetaData[] = Reflect.getMetadata(CommandUtils.PROPERTY_METADATA_KEY, target, key) || [];
+
+        let metaData:PropertyMetaData = 
+        {
+            Type:type,
+            Index:parameterIndex,
+            ConvertFunction:convertFunc
+        };
+
+        propertyMetaData.push(metaData);
+
+        Reflect.defineMetadata(CommandUtils.PROPERTY_METADATA_KEY, propertyMetaData, target, key);
     }
 
     public static LoadCommandRegistry(target:CommandAPI):void
@@ -174,5 +191,20 @@ export class CommandUtils
         // TODO: sort the commands and command overloads
 
         return commands;
+    }
+
+    public static GetParameterNameByIndex(target:any, funcName:string, index:number):string | null
+    {
+        let metaData:CommandMetaData[] = Reflect.getMetadata(CommandUtils.COMMAND_REGISTRY_KEY, target) || [];
+
+        for (let data of metaData)
+        {
+            if (data.FunctionName === funcName) 
+            {
+                return data.ParamNames[index];
+            }
+        }
+
+        return null;
     }
 }
