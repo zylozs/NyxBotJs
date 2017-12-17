@@ -1,7 +1,16 @@
-import { CommandInfo } from "../command/commanddecorator";
+import { CommandInfo, PermissionFlags } from "../command/commanddecorator";
 import { Command, CommandMetaData, ParamParserType, CommandRegistry, CommandAPI, Tag, PropertyMetaData } from "../command/commandapi";
 import { Logger } from '../utils/loggerutils';
+import { DiscordPermissionResolvable } from "../discord/discordtypes";
+import { MessageInfo } from "../bot/botapi";
 const GetParameterNames = require('get-parameter-names');
+
+export type CommandHelp = 
+{
+    Command:string;
+    PermissionFlags:number;
+    DiscordPermissions:DiscordPermissionResolvable[];
+};
 
 export class CommandUtils
 {
@@ -76,14 +85,17 @@ export class CommandUtils
         const temp:CommandMetaData = 
         {
             Description:description,
-            NumParams:params.length, // TEST
-            ParamNames:params, // TEST
+            NumParams:params.length,
+            ParamNames:params, 
             CommandName:commandName, 
             FunctionName:key, 
             OverrideDefaultParser:overrideDefaultParser,
             ParamParser:paramParser,
             ParamParserType:paramParserType,
-            Usage:'' // Will be added with a separate decorator for ease of reading
+            Usage:'', // Will be added with a separate decorator for ease of reading
+            PermissionFlags:0, // Flags are set with a separate decorator
+            DiscordPermissions:[], // Discord permissions are set with a separate decorator
+            GuildOnly:false // This is overridden with a separate decorator
         };
 
         logger.Verbose(JSON.stringify(temp));
@@ -92,7 +104,7 @@ export class CommandUtils
         Reflect.defineMetadata(CommandUtils.COMMAND_REGISTRY_KEY, commandRegistry, target);
     }
 
-    public static RegisterPropertyMetaData(target:Object, key:string | symbol, parameterIndex:number, type:string, convertFunc:(value:any) => any | null)
+    public static RegisterPropertyMetaData(target:Object, key:string | symbol, parameterIndex:number, type:string, convertFunc:(value:any, messageInfo:MessageInfo) => any | null)
     {
         const propertyMetaData:PropertyMetaData[] = Reflect.getMetadata(CommandUtils.PROPERTY_METADATA_KEY, target, key) || [];
 
@@ -164,9 +176,31 @@ export class CommandUtils
         return [parserType, parser];
     }
 
-    public static GetCommandHelp(commandRegistry:CommandRegistry, tag?:Tag):string[]
+    public static GetCommandPermissionFlags(commandRegistry:CommandRegistry, command:Command, funcName:string):[number, DiscordPermissionResolvable[]]
     {
-        let commands:string[] = [];
+        const metaData:CommandMetaData[] = commandRegistry.get(command) || [];
+
+        for (let data of metaData)
+        {
+            if (data.FunctionName === funcName)
+            {
+                let discordPermissions:DiscordPermissionResolvable[] | undefined = data.DiscordPermissions;
+                if (discordPermissions == undefined)
+                {
+                    discordPermissions = [];
+                }
+
+                return [data.PermissionFlags, discordPermissions];
+            }
+        }
+
+        // If we dont have any metadata or couldn't find the specific function, return 0 (meaning no flags)
+        return [0, []];
+    }
+
+    public static GetCommandHelp(commandRegistry:CommandRegistry, tag?:Tag):CommandHelp[]
+    {
+        let commands:CommandHelp[] = [];
         let logger:Logger = new Logger('GetCommandHelp');
 
         commandRegistry.forEach((metaData:CommandMetaData[], key:string)=>
@@ -184,11 +218,14 @@ export class CommandUtils
 
                 str += `\`  - ${data.Description}`;
                 logger.Debug(`command string: ${str}`);
-                commands.push(str);
+                commands.push(
+                { 
+                    Command:str, 
+                    PermissionFlags:data.PermissionFlags,
+                    DiscordPermissions:data.DiscordPermissions ? data.DiscordPermissions : []
+                });
             });
         });
-
-        // TODO: sort the commands and command overloads
 
         return commands;
     }
@@ -206,5 +243,20 @@ export class CommandUtils
         }
 
         return null;
+    }
+
+    public static GetIsGuildOnlyCommand(target:any, funcName:string):boolean
+    {
+        let metaData:CommandMetaData[] = Reflect.getMetadata(CommandUtils.COMMAND_REGISTRY_KEY, target) || [];
+
+        for (let data of metaData)
+        {
+            if (data.FunctionName === funcName) 
+            {
+                return data.GuildOnly;
+            }
+        }
+
+        return false;
     }
 }

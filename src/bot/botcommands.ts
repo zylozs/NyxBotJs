@@ -2,8 +2,8 @@ import { CommandUtils } from "../utils/commandutils";
 import { BotCommandAPI, CommandAPI, Command, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandError, CommandErrorCode, Tag, TagAlias } from '../command/commandapi';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './botapi';
-import { DiscordGuildMember, DiscordVoiceChannel, DiscordUser, DiscordSnowflake, DiscordGuildChannel, Collection } from '../discord/discordtypes';
-import { PluginCommand, BotCommand, Usage, ToBool } from '../command/commanddecorator';
+import { DiscordGuildMember, DiscordVoiceChannel, DiscordUser, DiscordSnowflake, DiscordGuildChannel, Collection, DiscordPermissionResolvable, DiscordRole } from '../discord/discordtypes';
+import { PluginCommand, BotCommand, Usage, ToBool, PermissionConstraint, PermissionFlags, GuildOnly, ToDiscordRole, ToDiscordGuildMember } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
 import { HelpCommandUtils } from './utils/helpcommandutils';
 import { UsageCommandUtils } from './utils/usagecommandutils';
@@ -54,6 +54,13 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
             return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE)];
         }
 
+        // Check permissions if the command came from a guild channel
+        const permissions:[number, DiscordPermissionResolvable[]] = CommandUtils.GetCommandPermissionFlags(this.m_CommandRegistry, parsedCommand.Tag, parsedArgs[0]);
+        if (messageInfo.Member && !await this.m_Bot.HasPermission(messageInfo.Member, permissions[0], permissions[1]))
+        {
+            return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS)];
+        }
+
         // Setup our args
         let args:any[] = [];
         args.push(messageInfo);
@@ -94,6 +101,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         \`!changebotavatar <image_url>\`
         **Example:** \`!changebotavatar www.website.com/url_to_image.png\``
     )
+    @PermissionConstraint(PermissionFlags.ROLE | PermissionFlags.USER)
     @BotCommand('Change the bot\s avatar image. Url must be a PNG or JPG image.', { name:'changebotavatar', paramParserType:ParamParserType.ALL })
     private async _ChangeBotAvatar_(messageInfo:MessageInfo, image_url:string):Promise<CommandError>
     {
@@ -105,10 +113,11 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     }
 
     @Usage(
-       `Changes the bot's server nickname to the name you provide.
+       `Changes the bot's guild nickname to the name you provide.
         \`!changebotname <name>\`
         **Example:** \`!changebotname He-man, Master of the Universe\``
     )
+    @PermissionConstraint(PermissionFlags.ROLE | PermissionFlags.USER)
     @BotCommand('Change the name of the bot to <name>', { name:'changebotname', paramParserType:ParamParserType.ALL })
     private async _ChangeBotName_(messageInfo:MessageInfo, name:string):Promise<CommandError>
     {
@@ -126,11 +135,12 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     }
 
     @Usage(
-       `Disables the plugin with the tag or alias you provide temporarily. This is equivalent to calling disableplugin with false for ispermanent. This can only be done by an admin.
+       `Disables the plugin with the tag or alias you provide temporarily. This is equivalent to calling disableplugin with false for ispermanent. 
         \`!disableplugin <tag>\`
         **Example with tag:** \`!disableplugin chatmod\`
         **Example with alias:** \`!disableplugin cm\``
     )
+    @PermissionConstraint(PermissionFlags.ROLE | PermissionFlags.USER)
     @BotCommand('Disables a plugin temporarily', { name:'disableplugin' })
     private async _DisablePluginTemporary_(messageInfo:MessageInfo, tag:Tag):Promise<CommandError>
     {
@@ -138,13 +148,14 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     }
 
     @Usage(
-       `Disables the plugin with the tag or alias you provide. If you specified true to ispermanent, it will be permanent and persist between bot sessions. If you specified false to ispermanent, it will only last until the bot is restarted or you re-enable the plugin. True/False are not case sensitive for ispermanent. This can only be done by an admin.
+       `Disables the plugin with the tag or alias you provide. If you specified true to ispermanent, it will be permanent and persist between bot sessions. If you specified false to ispermanent, it will only last until the bot is restarted or you re-enable the plugin. True/False are not case sensitive for ispermanent. 
         \`!disableplugin <tag> <ispermanent>\`
         **Example with tag:** \`!disableplugin chatmod false\`
         **Example with tag:** \`!disableplugin chatmod FALSE\`
         **Example with alias:** \`!disableplugin cm true\`
         **Example with alias:** \`!disableplugin cm TRUE\``
     )
+    @PermissionConstraint(PermissionFlags.ROLE | PermissionFlags.USER)
     @BotCommand('Disables a plugin temporarily or permanently', { name:'disableplugin' })
     private async _DisablePlugin_(messageInfo:MessageInfo, tag:Tag, @ToBool isPermanent:boolean):Promise<CommandError>
     {
@@ -183,11 +194,12 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     }
 
     @Usage(
-       `Enables the plugin with the tag or alias you provide temporarily. This is equivalent to calling enableplugin with false for ispermanent. This can only be done by an admin.
+       `Enables the plugin with the tag or alias you provide temporarily. This is equivalent to calling enableplugin with false for ispermanent.
         \`!enableplugin <tag>\`
         **Example with tag:** \`!enableplugin chatmod\`
         **Example with alias:** \`!enableplugin cm\``
     )
+    @PermissionConstraint(PermissionFlags.ROLE | PermissionFlags.USER)
     @BotCommand('Enables a plugin temporarily', { name:'enableplugin' })
     private async _EnablePluginTemporary_(messageInfo:MessageInfo, tag:Tag):Promise<CommandError>
     {
@@ -195,13 +207,14 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     }
 
     @Usage(
-       `Enables the plugin with the tag or alias you provide. If you specified true to ispermanent, it will be permanent and persist between bot sessions. If you specified false to ispermanent, it will only last until the bot is restarted or you disable the plugin again. True/False are not case sensitive for ispermanent. This can only be done by an admin.
+       `Enables the plugin with the tag or alias you provide. If you specified true to ispermanent, it will be permanent and persist between bot sessions. If you specified false to ispermanent, it will only last until the bot is restarted or you disable the plugin again. True/False are not case sensitive for ispermanent. 
         \`!enableplugin <tag> <ispermanent>\`
         **Example with tag:** \`!enableplugin chatmod false\`
         **Example with tag:** \`!enableplugin chatmod FALSE\`
         **Example with alias:** \`!enableplugin cm true\`
         **Example with alias:** \`!enableplugin cm TRUE\``
     )
+    @PermissionConstraint(PermissionFlags.ROLE | PermissionFlags.USER)
     @BotCommand('Enables a plugin temporarily or permanently', { name:'enableplugin' })
     private async _EnablePlugin_(messageInfo:MessageInfo, tag:Tag, @ToBool isPermanent:boolean):Promise<CommandError>
     {
@@ -282,6 +295,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         \`!join\`
         **Example:** \`!join\``
     )
+    @GuildOnly
     @BotCommand('Join the voice channel you are currently in', { name:'join' })
     private async _JoinMe_(messageInfo:MessageInfo):Promise<CommandError>
     {
@@ -312,59 +326,53 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         **Example when not case sensitive:** \`!join general\`
         **Example when case sensitive:** \`!join GeNerAl\``
     )
+    @GuildOnly
     @BotCommand('Join voice channel with given name', { name:'join' })
     private async _JoinChannel_(messageInfo:MessageInfo, channel:string):Promise<CommandError>
     {
-        if (messageInfo.Member != undefined)
-        {
-            const channels:Collection<DiscordSnowflake, DiscordGuildChannel> = messageInfo.Guild.channels;
-            let duplicateChannels:DiscordGuildChannel[] = [];
-            let selectedChannel:DiscordGuildChannel | undefined = undefined;
+        const channels:Collection<DiscordSnowflake, DiscordGuildChannel> = messageInfo.Guild.channels;
+        let duplicateChannels:DiscordGuildChannel[] = [];
+        let selectedChannel:DiscordGuildChannel | undefined = undefined;
             
-            channels.forEach((guildChannel:DiscordGuildChannel)=>
+        channels.forEach((guildChannel:DiscordGuildChannel)=>
+        {
+            if (guildChannel.type === 'voice' && guildChannel.name.toLowerCase() === channel.toLowerCase())
             {
-                if (guildChannel.type === 'voice' && guildChannel.name.toLowerCase() === channel.toLowerCase())
-                {
-                    duplicateChannels.push(guildChannel);
-                }
-            });
+                duplicateChannels.push(guildChannel);
+            }
+        });
 
-            if (duplicateChannels.length == 0)
-            {
-                await this.m_Bot.SendMessage(messageInfo.Channel, `There is no voice channel called \`${channel}\`.`);
-                return CommandError.Success();
-            }
-            else if (duplicateChannels.length == 1)
-            {
-                selectedChannel = duplicateChannels[0];
-            }
-            else
-            {
-                this.Logger.Debug('More than one channel with name found. Picking the channel with the same capitalization.');
-
-                for (let guildChannel of duplicateChannels)
-                {
-                    if (guildChannel.name === channel)
-                    {
-                        selectedChannel = guildChannel;
-                        break;
-                    }
-                }
-            }
-
-            if (selectedChannel != undefined) 
-            {
-                this.m_VoiceStarter = messageInfo.Author;
-                await this.m_Bot.JoinVoiceChannel(<DiscordVoiceChannel>selectedChannel);
-            }
-            else
-            {
-                await this.m_Bot.SendMessage(messageInfo.Channel, 'There is more than one channel with this name. Please use the correct capitalization to join a specific one.');
-            }
+        if (duplicateChannels.length == 0)
+        {
+            await this.m_Bot.SendMessage(messageInfo.Channel, `There is no voice channel called \`${channel}\`.`);
+            return CommandError.Success();
+        }
+        else if (duplicateChannels.length == 1)
+        {
+            selectedChannel = duplicateChannels[0];
         }
         else
         {
-            return CommandError.New(CommandErrorCode.GUILD_ONLY_COMMAND);
+            this.Logger.Debug('More than one channel with name found. Picking the channel with the same capitalization.');
+
+            for (let guildChannel of duplicateChannels)
+            {
+                if (guildChannel.name === channel)
+                {
+                    selectedChannel = guildChannel;
+                    break;
+                }
+            }
+        }
+
+        if (selectedChannel != undefined) 
+        {
+            this.m_VoiceStarter = messageInfo.Author;
+            await this.m_Bot.JoinVoiceChannel(<DiscordVoiceChannel>selectedChannel);
+        }
+        else
+        {
+            await this.m_Bot.SendMessage(messageInfo.Channel, 'There is more than one channel with this name. Please use the correct capitalization to join a specific one.');
         }
 
         return CommandError.Success();
@@ -375,6 +383,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
         \`!leave\`
         **Example:** \`!leave\``
     )
+    @GuildOnly
     @BotCommand('Leave the current voice channel', { name:'leave' })
     private async _Leave_(messageInfo:MessageInfo):Promise<CommandError>
     {
@@ -384,8 +393,7 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
             return CommandError.Success();
         }
 
-        // TODO: add admin check
-        if (messageInfo.Author == this.m_VoiceStarter)
+        if (messageInfo.Author == this.m_VoiceStarter || await this.m_Bot.IsAdmin(<DiscordGuildMember>messageInfo.Member))
         {
             this.m_VoiceStarter = undefined;
             await this.m_Bot.LeaveVoiceChannel();
@@ -399,14 +407,160 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
     }
 
     @Usage(
-       `Shuts down the bot. This can only be done by an admin.
+       `Gets the registered roles for this guild. Users with these roles have permission to execute commands with a role constraint while in this guild.
+        \`!registeredroles\`
+        **Example:** \`!registeredroles\``
+    )
+    @GuildOnly
+    @BotCommand('Gets the registered roles for this guild', { name:'registeredroles' })
+    private async _RegisteredRoles_(messageInfo:MessageInfo):Promise<CommandError>
+    {
+        const roles:DiscordRole[] = await this.m_Bot.GetRegisteredRoles(messageInfo.Guild);
+        let output:string = roles.length > 0 ? 'Registered Roles:\n' : 'There are currently no registered roles for this guild.';
+
+        roles.forEach((role:DiscordRole) =>
+        {
+            output += `${role.name}\n`;
+        });
+
+        await this.m_Bot.SendMessage(messageInfo.Channel, output);
+
+        return CommandError.Success();
+    }
+
+    @Usage(
+       `Gets the registered users for this guild. These users have permission to execute commands with a user constraint while in this guild.
+        \`!registeredusers\`
+        **Example:** \`!registeredusers\``
+    )
+    @GuildOnly
+    @BotCommand('Gets the registered users for this guild', { name:'registeredusers' })
+    private async _RegisteredUsers_(messageInfo:MessageInfo):Promise<CommandError>
+    {
+        const users:DiscordGuildMember[] = await this.m_Bot.GetRegisteredUsers(messageInfo.Guild);
+        let output:string = users.length > 0 ? 'Registered Users:\n' : 'There are currently no registered users for this guild.';
+
+        users.forEach((user:DiscordGuildMember) =>
+        {
+            output += `${user.displayName}\n`;
+        });
+
+        await this.m_Bot.SendMessage(messageInfo.Channel, output);
+
+        return CommandError.Success();
+    }
+
+    @Usage(
+       `Registers a specific role in the guild where the command is run as having permission to execute commands with a role constraint while in that guild.
+        \`!registerrole <role>\`
+        **Example using name:** \`!registerrole bot\`
+        **Example using @:** \`!registerrole @bot\``
+    )
+    @GuildOnly
+    @PermissionConstraint(PermissionFlags.ADMIN)
+    @BotCommand('Register a role as having permission to execute commands with a role constraint while in that guild', { name:'registerrole', paramParserType:ParamParserType.ALL })
+    private async _RegisterRole_(messageInfo:MessageInfo, @ToDiscordRole role:DiscordRole):Promise<CommandError>
+    {
+        if (await this.m_Bot.IsRoleRegistered(role))
+        {
+            this.m_Bot.SendMessage(messageInfo.Channel, `\`${role.name}\` is already a registered role.`);
+        }
+        else
+        {
+            await this.m_Bot.RegisterRole(role);
+            this.m_Bot.SendMessage(messageInfo.Channel, `\`${role.name}\` is now a registered role.`);
+        }
+
+        return CommandError.Success();
+    }
+
+    @Usage(
+       `Registers a specific user in the guild where the command is run as having permission to execute commands with a user constraint while in that guild.
+        \`!registeruser <user>\`
+        **Example using discord name:** \`!registeruser He-man Master of the Universe\`
+        **Example using discord tag:** \`!registeruser He-man Master of the Universe#1234\`
+        **Example using guild nickname:** \`!registeruser he-man the stronk\`
+        **Example using @:** \`!registeruser @He-man Master of the Universe\``
+    )
+    @GuildOnly
+    @PermissionConstraint(PermissionFlags.ADMIN)
+    @BotCommand('Register a user as having permission to execute commands with a user constraint while in that guild', { name:'registeruser', paramParserType:ParamParserType.ALL })
+    private async _RegisterUser_(messageInfo:MessageInfo, @ToDiscordGuildMember user:DiscordGuildMember):Promise<CommandError>
+    {
+        if (await this.m_Bot.IsUserRegistered(user))
+        {
+            this.m_Bot.SendMessage(messageInfo.Channel, `\`${user.displayName}\` is already a registered user in this guild.`);
+        }
+        else
+        {
+            await this.m_Bot.RegisterUser(user);
+            this.m_Bot.SendMessage(messageInfo.Channel, `\`${user.displayName}\` is now a registered user in this guild.`);
+        }
+
+        return CommandError.Success();
+    }
+
+    @Usage(
+       `Shuts down the bot. 
         \`!shutdown\`
         **Example:** \`!shutdown\``
     )
-    @BotCommand('Shutdown the bot (requires server admin permission)', { name:'shutdown' })
+    @GuildOnly
+    @PermissionConstraint(PermissionFlags.ADMIN)
+    @BotCommand('Shutdown the bot', { name:'shutdown' })
     private async _Shutdown_(messageInfo:MessageInfo):Promise<CommandError>
     {
         await this.m_Bot.RequestShutdown();
+
+        return CommandError.Success();
+    }
+
+    @Usage(
+       `Unregisters a specific role in the guild where the command is run and removes permission to execute commands with a role constraint while in that guild.
+        \`!unregisterrole <role>\`
+        **Example using name:** \`!unregisterrole super crazy bot\`
+        **Example using @:** \`!unregisterrole @super crazy bot\``
+    )
+    @GuildOnly
+    @PermissionConstraint(PermissionFlags.ADMIN)
+    @BotCommand('Unregister a role and remove permission to execute commands with a role constraint while in that guild', { name:'unregisterrole', paramParserType:ParamParserType.ALL })
+    private async _UnregisterRole_(messageInfo:MessageInfo, @ToDiscordRole role:DiscordRole):Promise<CommandError>
+    {
+        if (await this.m_Bot.IsRoleRegistered(role))
+        {
+            await this.m_Bot.UnregisterRole(role);
+            this.m_Bot.SendMessage(messageInfo.Channel, `\`${role.name}\` is no longer a registered role.`);
+        }
+        else
+        {
+            this.m_Bot.SendMessage(messageInfo.Channel, `\`${role.name}\` is not a registered role.`);
+        }
+
+        return CommandError.Success();
+    }
+
+    @Usage(
+       `Unregisters a specific user in the guild where the command is run and removes permission to execute commands with a user constraint while in that guild.
+        \`!unregisteruser <user>\`
+        **Example using discord name:** \`!unregisteruser He-man Master of the Universe\`
+        **Example using discord tag:** \`!unregisteruser He-man Master of the Universe#1234\`
+        **Example using guild nickname:** \`!unregisteruser he-man the stronk\`
+        **Example using @:** \`!unregisteruser @He-man Master of the Universe\``
+    )
+    @GuildOnly
+    @PermissionConstraint(PermissionFlags.ADMIN)
+    @BotCommand('Unregister a user and remove permission to execute commands with a user constraint while in that guild', { name:'unregisteruser', paramParserType:ParamParserType.ALL })
+    private async _UnregisterUser_(messageInfo:MessageInfo, @ToDiscordGuildMember user:DiscordGuildMember):Promise<CommandError>
+    {
+        if (await this.m_Bot.IsUserRegistered(user))
+        {
+            this.m_Bot.UnregisterUser(user);
+            this.m_Bot.SendMessage(messageInfo.Channel, `\`${user.displayName}\` is no longer a registered user in this guild.`);
+        }
+        else
+        {
+            this.m_Bot.SendMessage(messageInfo.Channel, `\`${user.displayName}\` is not a registered user in this guild.`);
+        }
 
         return CommandError.Success();
     }

@@ -1,6 +1,7 @@
 import { Logger } from '../utils/loggerutils'
 import { BotAPI, MessageInfo, ExtendedBotAPI } from '../bot/botapi';
 import { ParsedCommandInfo } from '../utils/inputparserutils';
+import { DiscordPermissionResolvable } from '../discord/discordtypes';
 
 // Aliases
 export type Tag = string;
@@ -19,13 +20,16 @@ export type CommandMetaData =
     ParamParser:Function;
     ParamParserType:ParamParserType;
     Usage:string;
+    PermissionFlags:number;
+    DiscordPermissions?:DiscordPermissionResolvable[];
+    GuildOnly:boolean;
 };
 
 export type PropertyMetaData = 
 {
     Type:string;
     Index:number;
-    ConvertFunction:(value:any) => any | null;
+    ConvertFunction:(value:any, messageInfo:MessageInfo) => any | null;
 };
 
 export enum ParamParserType

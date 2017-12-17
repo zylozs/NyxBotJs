@@ -1,8 +1,9 @@
 import { ExtendedBotAPI } from "../../bot/botapi";
 import { DiscordChannel } from '../../discord/discordtypes';
 import { Command, CommandAPI, Tag, TagAlias, CommandErrorCode, CommandError } from "../../command/commandapi";
-import { CommandUtils } from "../../utils/commandutils";
+import { CommandUtils, CommandHelp } from "../../utils/commandutils";
 import { Plugin } from '../../plugins/plugin';
+import { PermissionFlags } from "../../command/commanddecorator";
 
 export class HelpCommandUtils
 {
@@ -31,12 +32,7 @@ export class HelpCommandUtils
             {
                 let pluginHelp:string = this.GetHelpPluginHeader(plugin);
 
-                let commands:string[] = CommandUtils.GetCommandHelp(plugin.m_CommandRegistry, plugin.m_Tag);
-
-                commands.forEach((command:string) => 
-                {
-                    pluginHelp += command + '\n';
-                });
+                pluginHelp += this.GetHelpCommands(plugin, plugin.m_Tag);
 
                 await bot.SendMessage(channel, ApplyModifier(pluginHelp));
             });
@@ -67,12 +63,7 @@ export class HelpCommandUtils
 
                     let pluginHelp:string = this.GetHelpPluginHeader(plugin);
 
-                    let commands:string[] = CommandUtils.GetCommandHelp(plugin.m_CommandRegistry, plugin.m_Tag);
-
-                    commands.forEach((command:string) => 
-                    {
-                        pluginHelp += command + '\n';
-                    });
+                    pluginHelp += this.GetHelpCommands(plugin, plugin.m_Tag);
 
                     await bot.SendMessage(channel, ApplyModifier(pluginHelp));
 
@@ -92,12 +83,52 @@ export class HelpCommandUtils
     private static GetHelpBot(commandAPI:CommandAPI):string
     {
         let helpStr:string = '__**Basic Commands:**__\n';
-        let commands:string[] = CommandUtils.GetCommandHelp(commandAPI.m_CommandRegistry);
+        helpStr += this.GetHelpCommands(commandAPI);
 
-        commands.forEach((command:string)=>
+        return helpStr;
+    }
+
+    private static GetHelpCommands(commandAPI:CommandAPI, tag?:Tag):string
+    {
+        let helpStr:string = '';
+        let commands:CommandHelp[] = CommandUtils.GetCommandHelp(commandAPI.m_CommandRegistry, tag);
+        let adminCommands:string[] = [];
+        let showExtraHelp:boolean = false;
+
+        commands.forEach((command:CommandHelp) =>
         {
-            helpStr += command + '\n';
+            if (command.PermissionFlags & PermissionFlags.ROLE || 
+                command.PermissionFlags & PermissionFlags.USER || 
+                command.PermissionFlags & PermissionFlags.PERMISSION)
+            {
+                helpStr += '\\\*\\\* ';
+                showExtraHelp = true;
+            }
+
+            if (command.PermissionFlags & PermissionFlags.ADMIN)
+            {
+                adminCommands.push(command.Command);
+            }
+            else
+            {
+                helpStr += command.Command + '\n';
+            }
         });
+
+        if (adminCommands.length > 0)
+        {
+            helpStr += '\n__**Admin Commands:**__\n';
+
+            adminCommands.forEach((command:string) =>
+            {
+                helpStr += command + '\n';
+            });
+        }
+
+        if (showExtraHelp)
+        {
+            helpStr += '\n\\\*\\\* These Commands require additional permissions to run. See their usage for more info.';
+        }
 
         return helpStr;
     }

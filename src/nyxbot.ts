@@ -1,5 +1,5 @@
 import * as Discord from 'discord.js';
-import { DiscordVoiceConnection, DiscordChannel, DiscordVoiceChannel, DiscordMessage, DiscordUser, DiscordGuildMember } from './discord/discordtypes';
+import { DiscordVoiceConnection, DiscordChannel, DiscordVoiceChannel, DiscordMessage, DiscordUser, DiscordGuildMember, DiscordGuild, DiscordSnowflake, DiscordPermissionResolvable, DiscordRole, Collection } from './discord/discordtypes';
 import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './bot/botapi';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
@@ -8,6 +8,7 @@ import { BotCommandAPI, CommandAPI, ExecuteCommandResult, CommandErrorCode, Comm
 import { ParsedCommandInfo, InputParserUtils } from './utils/inputparserutils';
 import { Plugin, PluginDisabledState } from './plugins/plugin';
 import { PluginManager } from './plugins/pluginmanager';
+import { PermissionFlags } from './command/commanddecorator';
 
 const BotConfig = require('./config.json');
 const { ClientEvent } = EventListenerUtils;
@@ -49,6 +50,87 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     /// BOT API
     ///////////////////////////////////////////////////////////
 
+    public async HasPermission(user:DiscordGuildMember, permissionFlags:number, discordPermissions?:DiscordPermissionResolvable[]):Promise<boolean>
+    {
+        // Back out early if we have no permissions to check
+        if (permissionFlags == 0)
+        {
+            return true;
+        }
+
+        // Things with the admin permission flag require you are an admin to have permission
+        if (permissionFlags & PermissionFlags.ADMIN)
+        {
+            return user.hasPermission('ADMINISTRATOR');
+        }
+
+        // If we are an admin, we can do anything so just back out early
+        if (user.hasPermission('ADMINISTRATOR'))
+        {
+            return true;
+        }
+
+        if (permissionFlags & PermissionFlags.ROLE)
+        {
+            if (BotConfig.registeredRoles && (<DiscordSnowflake[]>BotConfig.registeredRoles).length > 0)
+            {
+                const roles:DiscordSnowflake[] = <DiscordSnowflake[]>BotConfig.registeredRoles;
+                for (let role of roles)
+                {
+                    // Check if the user and the guild they are in both have a role
+                    if (user.roles.has(role) && user.guild.roles.has(role))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        if (permissionFlags & PermissionFlags.USER)
+        {
+            if (BotConfig.registeredUsers && (<any[]>BotConfig.registeredUsers).length > 0)
+            {
+                const users:any[] = <any[]>BotConfig.registeredUsers;
+                for (let registeredUser of users)
+                {
+                    if (registeredUser.guild && registeredUser.user)
+                    {
+                        if (registeredUser.guild === user.guild.id && registeredUser.user === user.id)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (permissionFlags & PermissionFlags.PERMISSION)
+        {
+            if (discordPermissions == undefined)
+            {
+                discordPermissions = [];
+            }
+
+            for (let permission of discordPermissions)
+            {
+                // The user must have all of the permissions listed
+                if (!user.hasPermission(permission))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public async IsAdmin(user:DiscordGuildMember):Promise<boolean>
+    {
+        return await this.HasPermission(user, PermissionFlags.ADMIN);
+    }
+
     public IsInVoiceChannel():boolean
     {
         return this.m_VoiceConnection != undefined;
@@ -66,8 +148,6 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
     public async RequestShutdown():Promise<void>
     {
-        // TODO: test for admin permission
-
         this.m_BotCommands.Shutdown();
         this.destroy();
         process.exit(0);
@@ -123,6 +203,90 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         return this.m_PluginManager.GetPlugins<Plugin>();
     }
 
+    public async GetRegisteredRoles(guild:DiscordGuild):Promise<DiscordRole[]>
+    {
+        if (!BotConfig.registeredRoles || (<DiscordSnowflake[]>BotConfig.registeredRoles).length == 0)
+        {
+            return [];
+        }
+
+        const roles:Collection<DiscordSnowflake, DiscordRole> = guild.roles;
+        const configRoles:DiscordSnowflake[] = <DiscordSnowflake[]>BotConfig.registeredRoles;
+        let registeredRoles:DiscordRole[] = [];
+
+        roles.forEach((discordRole:DiscordRole, snowflake:DiscordSnowflake) =>
+        {
+            configRoles.forEach((roleSnowflake:DiscordSnowflake) =>
+            {
+                if (snowflake === roleSnowflake)
+                {
+                    registeredRoles.push(discordRole);
+                }
+            });
+        });
+
+        return registeredRoles;
+    }
+
+    public async GetRegisteredUsers(guild:DiscordGuild):Promise<DiscordGuildMember[]>
+    {
+        if (!BotConfig.registeredUsers || (<any[]>BotConfig.registeredUsers).length == 0)
+        {
+            return [];
+        }
+
+        const members:Collection<DiscordSnowflake, DiscordGuildMember> = guild.members;
+        const configUsers:any[] = <any[]>BotConfig.registeredUsers;
+        let registeredUsers:DiscordGuildMember[] = [];
+
+        members.forEach((discordMember:DiscordGuildMember, snowflake:DiscordSnowflake) =>
+        {
+            configUsers.forEach((user:any) =>
+            {
+                if (user.guild && user.user)
+                {
+                    if (user.guild === guild.id && user.user === snowflake)
+                    {
+                        registeredUsers.push(discordMember);
+                    }
+                }
+            });
+        });
+
+        return registeredUsers;
+    }
+
+    public async IsRoleRegistered(role:DiscordRole):Promise<boolean>
+    {
+        if (!BotConfig.registeredRoles)
+        {
+            return false;
+        }
+
+        return (<DiscordSnowflake[]>BotConfig.registeredRoles).includes(role.id);
+    }
+
+    public async IsUserRegistered(user:DiscordGuildMember):Promise<boolean>
+    {
+        if (!BotConfig.registeredUsers)
+        {
+            return false;
+        }
+
+        for (let registeredUser of <any[]>BotConfig.registeredUsers)
+        {
+            if (registeredUser.guild && registeredUser.user)
+            {
+                if (registeredUser.guild === user.guild.id && registeredUser.user === user.id)
+                {
+                    return true;
+                }
+            } 
+        }
+
+        return false;
+    }
+
     public async JoinVoiceChannel(channel:DiscordVoiceChannel):Promise<void>
     {
         if (this.m_VoiceConnection == undefined)
@@ -166,11 +330,49 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         // TODO: add stop "sound queue" events
     }
 
+    public async RegisterRole(role:DiscordRole):Promise<void>
+    {
+        if (!BotConfig.registeredRoles)
+        {
+            BotConfig.registeredRoles = [];
+        }
+
+        (<DiscordSnowflake[]>BotConfig.registeredRoles).push(role.id);
+
+        try
+        {
+            fs.writeFile('./config.json', JSON.stringify(BotConfig));
+        }
+        catch(e)
+        {
+            this.Logger.Error(`Failed to register role ${role.name} in the config file. Error: ${e}`);
+        }
+    }
+
+    public async RegisterUser(user:DiscordGuildMember):Promise<void>
+    {
+        if (!BotConfig.registeredUsers)
+        {
+            BotConfig.registeredUsers = [];
+        }
+
+        (<any[]>BotConfig.registeredUsers).push({ guild:user.guild.id, user:user.id });
+
+        try
+        {
+            fs.writeFile('./config.json', JSON.stringify(BotConfig));
+        }
+        catch(e)
+        {
+            this.Logger.Error(`Failed to register user ${user.displayName} in the config file. Error: ${e}`);
+        }
+    }
+
     public async RemoveDisabledPlugin(name:string):Promise<void>
     {
         if (!BotConfig.disabledPlugins)
         {
-            this.Logger.Error(`You can't remove plugin ${name} in the config because it is not there.`);
+            this.Logger.Error(`You can't enable plugin ${name} in the config because it is not there.`);
             return;
         }
 
@@ -197,6 +399,60 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     {
         this.Logger.Debug('Setting bot avatar!');
         await this.user.setAvatar(image);
+    }
+
+    public async UnregisterRole(role:DiscordRole):Promise<void>
+    {
+        if (!BotConfig.registeredRoles)
+        {
+            this.Logger.Error(`You can't unregister role ${role.name} in the config because it is not there.`);
+            return;
+        }
+
+        let index:number = (<DiscordSnowflake[]>BotConfig.registeredRoles).indexOf(role.id);
+        if (index == -1)
+        {
+            this.Logger.Error(`You can't unregister role ${role.name} in the config because it is not there.`);
+            return;
+        }
+
+        (<DiscordSnowflake[]>BotConfig.registeredRoles).splice(index, 1);
+        
+        try
+        {
+            fs.writeFile('./config.json', JSON.stringify(BotConfig));
+        }
+        catch(e)
+        {
+            this.Logger.Error(`Failed to unregister role ${role.name} in the config file. Error: ${e}`);
+        }
+    }
+
+    public async UnregisterUser(user:DiscordGuildMember):Promise<void>
+    {
+        if (!BotConfig.registeredUsers)
+        {
+            this.Logger.Error(`You can't unregister user ${user.displayName} in the config because it is not there.`);
+            return;
+        }
+
+        let index:number = (<any[]>BotConfig.registeredUsers).indexOf({ guild:user.guild.id, user:user.id });
+        if (index == -1)
+        {
+            this.Logger.Error(`You can't unregister user ${user.displayName} in the config because it is not there.`);
+            return;
+        }
+
+        (<any[]>BotConfig.registeredUsers).splice(index, 1);
+        
+        try
+        {
+            fs.writeFile('./config.json', JSON.stringify(BotConfig));
+        }
+        catch(e)
+        {
+            this.Logger.Error(`Failed to unregister user ${user.displayName} in the config file. Error: ${e}`);
+        }
     }
 
     ///////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@ import { BotAPI, MessageInfo } from '../bot/botapi';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
 import { CommandUtils } from '../utils/commandutils';
 import { InputParserUtils, ParsedCommandInfo } from '../utils/inputparserutils';
+import { DiscordPermissionResolvable } from '../discord/discordtypes';
 
 export enum PluginDisabledState
 {
@@ -66,6 +67,13 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
         if (parsedArgs == undefined)
         {
             return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.INCORRECT_PLUGIN_COMMAND_USAGE)];
+        }
+
+        // Check permissions if the command came from a guild channel
+        const permissions:[number, DiscordPermissionResolvable[]] = CommandUtils.GetCommandPermissionFlags(this.m_CommandRegistry, parsedCommand.Command, parsedArgs[0]);
+        if (messageInfo.Member && !await this.m_Bot.HasPermission(messageInfo.Member, permissions[0], permissions[1]))
+        {
+            return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.INSUFFICIENT_USER_PERMISSIONS)];
         }
 
         // Setup our args

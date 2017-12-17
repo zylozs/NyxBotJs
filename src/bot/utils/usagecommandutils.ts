@@ -1,7 +1,8 @@
 import { CommandAPI, Tag, Command, CommandErrorCode, CommandMetaData, CommandError } from '../../command/commandapi';
 import { ExtendedBotAPI } from '../../bot/botapi';
-import { DiscordChannel } from '../../discord/discordtypes';
+import { DiscordChannel, DiscordPermissionResolvable } from '../../discord/discordtypes';
 import { Plugin } from '../../plugins/plugin';
+import { PermissionFlags } from '../../command/commanddecorator';
 
 export class UsageCommandUtils
 {
@@ -21,7 +22,9 @@ export class UsageCommandUtils
                 let usageStr:string = this.GetUsageForCommandAPI(commandAPI, command);
 
                 if (usageStr === '')
+                {
                     return CommandError.Custom('This command does not have any usage documentation.');
+                }
 
                 await bot.SendMessage(channel, usageStr);
             }
@@ -50,10 +53,11 @@ export class UsageCommandUtils
                     let usageStr:string = this.GetUsageForCommandAPI(plugin, command);
 
                     if (usageStr === '')
+                    {
                         return CommandError.Custom('This command does not have any usage documentation.');
+                    }
 
                     await bot.SendMessage(channel, usageStr);
-
                     break;
                 }
             }
@@ -80,13 +84,53 @@ export class UsageCommandUtils
         let usageStr:string = `__**Usage for ${command}:**__\n`;
         let commandsStr:string = '';
 
-        // TODO: sort these
         const metaData:CommandMetaData[] = <CommandMetaData[]>commandAPI.m_CommandRegistry.get(command);
 
         metaData.forEach((data:CommandMetaData, index:number) => 
         {
             if (index != 0)
+            {
                 commandsStr += '\n';
+            }
+
+            if (data.PermissionFlags & PermissionFlags.ADMIN)
+            {
+                commandsStr += '**This Command is Admin Only**\n';
+            }
+            else if (data.PermissionFlags != 0)
+            {
+                commandsStr += '**Required Permissions:** ';
+                let needsSeperator:boolean = false;
+
+                if (data.PermissionFlags & PermissionFlags.ROLE)
+                {
+                    commandsStr += `${needsSeperator ? ' or ' : ''}\`Registered Role\``;
+                    needsSeperator = true;
+                }
+                if (data.PermissionFlags & PermissionFlags.USER)
+                {
+                    commandsStr += `${needsSeperator ? ' or ' : ''}\`Registered User\``;
+                    needsSeperator = true;
+                }
+                if (data.PermissionFlags & PermissionFlags.PERMISSION)
+                {
+                    commandsStr += `${needsSeperator ? ' or ' : ''}\`All of these Discord Permissions: `;
+                    needsSeperator = true;
+
+                    if (data.DiscordPermissions && data.DiscordPermissions.length > 0)
+                    {
+                        for (let i:number = 0; i < data.DiscordPermissions.length; ++i)
+                        {
+                            const seperator:string = i + 1 < data.DiscordPermissions.length ? ', ' : '';
+                            commandsStr += `${data.DiscordPermissions[i]}${seperator}`;
+                        };
+                    }
+
+                    commandsStr += '\`';
+                }
+
+                commandsStr += '\n';
+            }
 
             commandsStr += `${data.Usage}\n`;
         });
