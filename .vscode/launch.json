@@ -14,7 +14,11 @@
             "sourceMaps": true,
             "outFiles": [ "${workspaceRoot}/dist/**/*.js" ],
             "skipFiles": [ "<node_internals>/**/*.js" ],
-            "localRoot": "${workspaceRoot}/src"
+        },
+        {
+            "request": "attach",
+            "localRoot": "${workspaceRoot}/src",
+            "remoteRoot": ""
         }
     ]
 }

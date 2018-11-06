@@ -1,4 +1,4 @@
-import { DiscordChannel, DiscordVoiceChannel, DiscordGuild, DiscordUser, DiscordGuildMember, DiscordPermissionResolvable, DiscordRole, DiscordSnowflake } from '../discord/discordtypes';
+import { DiscordChannel, DiscordVoiceChannel, DiscordGuild, DiscordUser, DiscordGuildMember, DiscordPermissionResolvable, DiscordRole, DiscordSnowflake, DiscordRichEmbed } from '../discord/discordtypes';
 import { Plugin } from '../plugins/plugin';
 import { TagAlias } from '../command/commandapi';
 
@@ -9,7 +9,7 @@ export interface BotAPI
     IsInVoiceChannel():boolean;
     RegisterVoiceEventHandler(object:VoiceEventHandler):Promise<void>;
     RequestShutdown():Promise<void>;
-    SendMessage(channel:DiscordChannel, message:string):Promise<void>;
+    SendMessage(channel:DiscordChannel, message:string | DiscordRichEmbed):Promise<void>;
     UnRegisterVoiceEventHandler(object:VoiceEventHandler):Promise<void>;
 }
 

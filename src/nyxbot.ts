@@ -1,5 +1,5 @@
 import * as Discord from 'discord.js';
-import { DiscordVoiceConnection, DiscordChannel, DiscordVoiceChannel, DiscordMessage, DiscordUser, DiscordGuildMember, DiscordGuild, DiscordSnowflake, DiscordPermissionResolvable, DiscordRole, Collection } from './discord/discordtypes';
+import { DiscordVoiceConnection, DiscordChannel, DiscordVoiceChannel, DiscordMessage, DiscordUser, DiscordGuildMember, DiscordGuild, DiscordSnowflake, DiscordPermissionResolvable, DiscordRole, Collection, DiscordRichEmbed, NewEmbed } from './discord/discordtypes';
 import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './bot/botapi';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
@@ -153,11 +153,46 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         process.exit(0);
     }
 
-    public async SendMessage(channel: DiscordChannel, message: string): Promise<void>
+    public async SendMessage(channel:DiscordChannel, message:string | DiscordRichEmbed):Promise<void>
     {
+        // TODO: Finish playing around with discord embeds
         // TODO: add checks for things like message length
+
+        /*let helpEmbed:DiscordRichEmbed = new Discord.RichEmbed();
+        helpEmbed.setColor([0, 69, 138]);
+        helpEmbed.setTitle('Bot Command Help');*/
+
+        // Field limit: 1024 char
+        // Description limit: 2048 char
+        // Embed limit: 6000 char
+
+        // Option 1 using fields
+        /*helpEmbed.addField('Basic Commands', '\\\*\\\* `!changebotavatar <image_url> `  - Change the bots avatar image. Url must be a PNG or JPG image.\n\\\*\\\* `!changebotname <name> `  - Change the name of the bot to <name>\n\\\*\\\* `!disableplugin <tag> `  - Disables a plugin temporarily\n\\\*\\\* `!disableplugin <tag> <isPermanent> `  - Disables a plugin temporarily or permanently\n\\\*\\\* `!enableplugin <tag> `  - Enables a plugin temporarily\n\\\*\\\* `!enableplugin <tag> <isPermanent> `  - Enables a plugin temporarily or permanently\n`!hello `  - Say Hello\n`!help `  - Provides the basic help page\n`!help <pagename> `  - Provides the help page for a specific part of the bot or its plugins');
+        helpEmbed.addField('Basic Commands continued', '`!join `  - Join the voice channel you are currently in\n`!join <channel> `  - Join voice channel with given name\n`!leave `  - Leave the current voice channel\n`!registeredroles `  - Gets the registered roles for this guild\n`!registeredusers `  - Gets the registered users for this guild\n`!usage `  - Get the basic help page for the usage command\n`!usage <botcommand> `  - Shows the usage for a bot command\n`!usage <tag> <command> `  - Shows the usage for a plugin command');
+        helpEmbed.addField('Admin Commands', '`!registerrole <role> `  - Register a role as having permission to execute commands with a role constraint while in that guild\n`!registeruser <user> `  - Register a user as having permission to execute commands with a user constraint while in that guild\n`!shutdown `  - Shutdown the bot\n`!unregisterrole <role> `  - Unregister a role and remove permission to execute commands with a role constraint while in that guild\n`!unregisteruser <user> `  - Unregister a user and remove permission to execute commands with a user constraint while in that guild');
+        helpEmbed.addField('\u200b', '\*\* These commands require additional permissions to run. See their usage for more info.');
+        */
+
+        // Option 2 using description for most of it
+        //helpEmbed.setDescription('\u200b\n__**Basic Commands**__\n\\\*\\\* `!changebotavatar <image_url> `  - Change the bots avatar image. Url must be a PNG or JPG image.\n\\\*\\\* `!changebotname <name> `  - Change the name of the bot to <name>\n\\\*\\\* `!disableplugin <tag> `  - Disables a plugin temporarily\n\\\*\\\* `!disableplugin <tag> <isPermanent> `  - Disables a plugin temporarily or permanently\n\\\*\\\* `!enableplugin <tag> `  - Enables a plugin temporarily\n\\\*\\\* `!enableplugin <tag> <isPermanent> `  - Enables a plugin temporarily or permanently\n`!hello `  - Say Hello\n`!help `  - Provides the basic help page\n`!help <pagename> `  - Provides the help page for a specific part of the bot or its plugins\n`!join `  - Join the voice channel you are currently in\n`!join <channel> `  - Join voice channel with given name\n`!leave `  - Leave the current voice channel\n`!registeredroles `  - Gets the registered roles for this guild\n`!registeredusers `  - Gets the registered users for this guild\n`!usage `  - Get the basic help page for the usage command\n`!usage <botcommand> `  - Shows the usage for a bot command\n`!usage <tag> <command> `  - Shows the usage for a plugin command\n\n__**Admin Commands**__\n`!registerrole <role> `  - Register a role as having permission to execute commands with a role constraint while in that guild\n`!registeruser <user> `  - Register a user as having permission to execute commands with a user constraint while in that guild\n`!shutdown `  - Shutdown the bot\n`!unregisterrole <role> `  - Unregister a role and remove permission to execute commands with a role constraint while in that guild\n`!unregisteruser <user> `  - Unregister a user and remove permission to execute commands with a user constraint while in that guild\n\n\\\*\\\* These commands require additional permissions to run. See their usage for more info.');
+
+        /*let usageEmbed:DiscordRichEmbed = new Discord.RichEmbed();
+        usageEmbed.setColor([0, 145, 145]);
+        usageEmbed.setTitle('Usage for disableplugin');
+        usageEmbed.setDescription('\u200b');
+        usageEmbed.addField('!disableplugin <tag>', '**Required Permissions:** `Registered Role` or `Registered User`\nDisables the plugin with the tag or alias you provide temporarily. This is equivalent to calling disableplugin with false for ispermanent.\n\n**Example with tag:** `!disableplugin chatmod`\n**Example with alias:** `!disableplugin cm`');
+        usageEmbed.addField('!disableplugin <tag> <ispermanent>', 'Disables the plugin with the tag or alias you provide. If you specified true to ispermanent, it will be permanent and persist between bot sessions. If you specified false to ispermanent, it will only last until the bot is restarted or you re-enable the plugin. True/False are not case sensitive for ispermanent.\n\n**Example with tag:** `!disableplugin chatmod false`\n**Example with tag:** `!disableplugin chatmod FALSE`\n**Example with alias:** `!disableplugin cm true`\n**Example with alias:** `!disableplugin cm TRUE`');
+        */
+
+        /*if (typeof(message) === 'string')
+        {
+            message = NewEmbed().setDescription(message);
+        }*/
+
         this.Logger.Debug(message);
         await channel.send(message);
+        //await channel.send(helpEmbed);
+        //await channel.send(usageEmbed);
     }
 
     public async UnRegisterVoiceEventHandler(object:VoiceEventHandler):Promise<void>
