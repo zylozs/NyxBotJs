@@ -1,1 +1,1 @@
-node dist/nyxbot.js --verbose
+cd dist && node nyxbot.js --verbose

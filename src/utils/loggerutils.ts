@@ -84,22 +84,22 @@ export class Logger
 
     public Verbose(...args:any[]):void
     {
-        LoggerUtils.GetLoggerInstance().Verbose(args.join(' '), { context:this.GetContext() });
+        LoggerUtils.GetLoggerInstance().Verbose(args.join(''), { context:this.GetContext() });
     }
 
     public Debug(...args:any[]):void
     {
-        LoggerUtils.GetLoggerInstance().Debug(args.join(' '), { context:this.GetContext() });
+        LoggerUtils.GetLoggerInstance().Debug(args.join(''), { context:this.GetContext() });
     }
 
     public Warning(...args:any[]):void
     {
-        LoggerUtils.GetLoggerInstance().Warning(args.join(' '), { context:this.GetContext() });
+        LoggerUtils.GetLoggerInstance().Warning(args.join(''), { context:this.GetContext() });
     }
 
     public Error(...args:any[]):void
     {
-        LoggerUtils.GetLoggerInstance().Error(args.join(' '), { context:this.GetContext() });
+        LoggerUtils.GetLoggerInstance().Error(args.join(''), { context:this.GetContext() });
     }
 }
 
@@ -157,6 +157,6 @@ export class LoggerUtils
         const context:string = options.meta.context;
         const message:string = options.message;
 
-        return `[${time}] [${level}] [${context}]: ${message}`;
+        return `[${time}][${level}][${context}]: ${message}`;
     }
 }
