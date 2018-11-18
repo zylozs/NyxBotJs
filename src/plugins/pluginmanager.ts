@@ -73,10 +73,10 @@ class PluginModule
     {
         let plugin:PluginModule = new PluginModule(dir, file, classType, config);
 
-        let factory:FactoryFunction = (callback:(error:Error | null, instance:any, config:any)=>any):any =>
+        let factory:FactoryFunction = (callback:(error:Error | null, instance:any, config:any, filepath:string)=>any):any =>
         {
             let pluginInstance:any = plugin.PluginFactory();
-            return callback(null, pluginInstance, config);
+            return callback(null, pluginInstance, config, path.join(dir, 'pluginconfig.json'));
         }
 
         return factory;
@@ -88,18 +88,34 @@ export class PluginManager
     private m_Plugins:Map<PluginName, FactoryFunction>;
     private m_CachedPluginInstances:Map<PluginName, any>;
     private m_CachedPluginConfigs:Map<PluginName, any>;
+    private m_CachedPluginConfigFilepaths:Map<PluginName, any>;
 
     public constructor()
     {
         this.m_Plugins = new Map();
         this.m_CachedPluginInstances = new Map();
         this.m_CachedPluginConfigs = new Map();
+        this.m_CachedPluginConfigFilepaths = new Map();
     }
 
     public GetPlugin<T>(name:string):T { return <T>this.m_CachedPluginInstances.get(name); }
     public GetPlugins<T>():T[] { return <T[]>Array.from(this.m_CachedPluginInstances.values()); }
     public GetPluginConfig(name:string):any { return this.m_CachedPluginConfigs.get(name); }
     public GetPluginConfigs():any[] { return Array.from(this.m_CachedPluginConfigs.values()); }
+
+    public SaveConfigFile(name:string, OnFail:(error:Error)=>void):void
+    {
+        try
+        {
+            const filepath:string = this.m_CachedPluginConfigFilepaths.get(name);
+            const config:any = this.m_CachedPluginConfigs.get(name);
+            fs.writeFile(filepath, JSON.stringify(config));
+        }
+        catch(e)
+        {
+            OnFail(e);
+        }
+    }
 
     public ScanSubdirs(dirs:string | string[]):this
     {
@@ -160,6 +176,7 @@ export class PluginManager
                 // Add the new plugin instances to the cache
                 this.m_CachedPluginInstances.set(instance.name, instance.instance);
                 this.m_CachedPluginConfigs.set(instance.name, instance.config);
+                this.m_CachedPluginConfigFilepaths.set(instance.name, instance.filepath);
             });
 
             if (options != undefined)
@@ -231,7 +248,7 @@ export class PluginManager
         if (factory != undefined)
         {
             let info:any = { name:name };
-            return factory((error:Error | null, instance:any, config:any):any =>
+            return factory((error:Error | null, instance:any, config:any, filepath:string):any =>
             {
                 if (error != null && options.OnError != undefined)
                 {
@@ -239,7 +256,7 @@ export class PluginManager
                     return null;
                 }
 
-                return { instance:instance, name:name, config:config};
+                return { instance:instance, name:name, config:config, filepath:filepath };
             });
         }
         else

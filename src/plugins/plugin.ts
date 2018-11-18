@@ -25,6 +25,9 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
     public m_DefaultParserType:ParamParserType;
 
     private m_DisabledState:PluginDisabledState;
+    private m_ConfigDirtyFlag:boolean;
+
+    public IsConfigDirty():boolean { return this.m_ConfigDirtyFlag; }
 
     public IsDisabled():boolean { return this.m_DisabledState != PluginDisabledState.ENABLED; }
     public GetDisabledState():PluginDisabledState { return this.m_DisabledState; }
@@ -50,6 +53,7 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
         this.m_DefaultParser = CommandUtils.ParamParserSpaces;
         this.m_DefaultParserType = ParamParserType.SPACES;
         this.m_DisabledState = PluginDisabledState.ENABLED;
+        this.m_ConfigDirtyFlag = false;
 
         CommandUtils.LoadCommandRegistry(this);
 
@@ -95,5 +99,11 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
     public async Shutdown():Promise<void>
     {
 
+    }
+
+    protected ModifyConfig(name:string, value:any):void
+    {
+        this.m_Config[name] = value;
+        this.m_ConfigDirtyFlag = true;
     }
 }

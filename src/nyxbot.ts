@@ -156,9 +156,39 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
     public async RequestShutdown():Promise<void>
     {
+        let needsExtraTime:boolean = false;
+
+        this.Logger.Debug(`Shutting down plugins`);
+        const plugins: Plugin[] = this.m_PluginManager.GetPlugins<Plugin>();
+        for (let plugin of plugins)
+        {
+            plugin.Shutdown();
+
+            // Check for dirty config files and save them
+            if (plugin.IsConfigDirty())
+            {
+                needsExtraTime = true;
+                this.m_PluginManager.SaveConfigFile(plugin.m_Name, (error:Error)=>
+                {
+                    this.Logger.Error(`Failed to save config for plugin ${plugin.m_Name}. Error: ${error}`);
+                });
+            }
+        }
+
+        this.Logger.Debug(`Shutting down bot`);
         this.m_BotCommands.Shutdown();
+
         this.destroy();
-        process.exit(0);
+
+        // The file system needs enough time to save the files so just wait a few seconds
+        if (needsExtraTime)
+        {
+            setTimeout(()=>{ process.exit(0); }, 2000);
+        }
+        else
+        {
+            process.exit(0);
+        }
     }
 
     public async SendMessage(channel:DiscordChannel, message:string | DiscordRichEmbed):Promise<void>
