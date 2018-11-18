@@ -1,7 +1,7 @@
 import { CommandUtils } from "../utils/commandutils";
 import { BotCommandAPI, CommandAPI, Command, CommandRegistry, ParamParserType, ExecuteCommandResult, CommandError, CommandErrorCode, Tag, TagAlias } from '../command/commandapi';
 import { Logger, LoggingEnabled } from '../utils/loggerutils';
-import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './botapi';
+import { ExtendedBotAPI, MessageInfo, VoiceEventHandler, VoiceRequest } from './botapi';
 import { DiscordGuildMember, DiscordVoiceChannel, DiscordUser, DiscordSnowflake, DiscordGuildChannel, Collection, DiscordPermissionResolvable, DiscordRole } from '../discord/discordtypes';
 import { PluginCommand, BotCommand, Usage, ToBool, PermissionConstraint, PermissionFlags, GuildOnly, ToDiscordRole, ToDiscordGuildMember } from '../command/commanddecorator';
 import { ParsedCommandInfo, InputParserUtils } from '../utils/inputparserutils';
@@ -82,14 +82,39 @@ export class BotCommands implements BotCommandAPI, VoiceEventHandler, LoggingEna
 
     }
 
-    public async HandleJoinVoiceChannel():Promise<void>
+    public async OnJoinVoiceChannel():Promise<void>
     {
 
     }
 
-    public async HandleLeaveVoiceChannel():Promise<void>
+    public async OnLeaveVoiceChannel():Promise<void>
     {
 
+    }
+
+    public async OnVoiceRequestStarted(request:VoiceRequest):Promise<void>
+    {
+
+    }
+
+    public async OnVoiceRequestFinished(request:VoiceRequest):Promise<void>
+    {
+
+    }
+
+    public async OnVoiceRequestPaused(request:VoiceRequest):Promise<void>
+    {
+
+    }
+
+    public async OnVoiceRequestResumed(request:VoiceRequest):Promise<void>
+    {
+
+    }
+
+    public async OnVoiceRequestQueueFinished():Promise<void>
+    {
+        
     }
 
     ///////////////////////////////////////////////////////////

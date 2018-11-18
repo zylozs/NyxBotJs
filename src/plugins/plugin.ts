@@ -44,7 +44,6 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
 
     public async Initialize(bot:BotAPI, parentContext?:Logger):Promise<void>
     {
-        this.Logger = Logger.CreateLogger(parentContext, `Plugin ${this.m_Tag}`);
         this.m_Bot = bot;
         this.m_Tag = ''
         this.m_TagAlias = '';
@@ -56,6 +55,7 @@ export abstract class Plugin implements CommandAPI, LoggingEnabled
 
         this.InitPlugin();
 
+        this.Logger = Logger.CreateLogger(parentContext, `Plugin ${this.m_Tag}`);
         this.Logger.Debug(`Initialized plugin ${this.m_Tag}`);
     }
 
