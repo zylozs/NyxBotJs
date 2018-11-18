@@ -1,0 +1,5 @@
+{
+    "name": "Music Plugin",
+    "file": "musicplugin.js",
+    "class": "MusicPlugin"
+}
