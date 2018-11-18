@@ -1,6 +1,6 @@
 import * as Discord from 'discord.js';
 import { DiscordVoiceConnection, DiscordChannel, DiscordVoiceChannel, DiscordMessage, DiscordUser, DiscordGuildMember, DiscordGuild, DiscordSnowflake, DiscordPermissionResolvable, DiscordRole, Collection, DiscordRichEmbed, NewEmbed } from './discord/discordtypes';
-import { ExtendedBotAPI, MessageInfo, VoiceEventHandler } from './bot/botapi';
+import { ExtendedBotAPI, MessageInfo, VoiceEventHandler, VoiceRequest, VoiceRequestID } from './bot/botapi';
 import { EventListenerUtils, EventListener } from './utils/eventlistenerutils';
 import { Logger, LoggingEnabled, LoggerUtils } from './utils/loggerutils';
 import { BotCommands } from './bot/botcommands';
@@ -9,11 +9,13 @@ import { ParsedCommandInfo, InputParserUtils } from './utils/inputparserutils';
 import { Plugin, PluginDisabledState } from './plugins/plugin';
 import { PluginManager } from './plugins/pluginmanager';
 import { PermissionFlags } from './command/commanddecorator';
+import { Readable } from 'stream';
 
 const BotConfig = require('./config.json');
 const { ClientEvent } = EventListenerUtils;
 const commandLineArgs = require('command-line-args');
 const fs = require('fs');
+const YoutubeDownloader = require('ytdl-core');
 
 const optionDefinitions = [
     { name: 'verbose', alias: 'v', type:Boolean }
@@ -30,6 +32,9 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     private m_BotCommands:BotCommandAPI;
     private m_VoiceEventHandlers:Set<VoiceEventHandler>;
     private m_PluginManager:PluginManager;
+    private m_NextVoiceRequestID:VoiceRequestID;
+    private m_CurrentVoiceRequest:VoiceRequest | undefined;
+    private m_VoiceRequestQueue:VoiceRequest[];
 
     public constructor()
     {
@@ -42,6 +47,9 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         this.m_PluginManager = new PluginManager();
         this.m_IsInitialized = false;
         this.m_PluginCommandCollisions = new Map();
+        this.m_NextVoiceRequestID = 0;
+        this.m_CurrentVoiceRequest = undefined;
+        this.m_VoiceRequestQueue = [];
 
         EventListenerUtils.RegisterEventListeners(this);
     }
@@ -53,7 +61,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     public async HasPermission(user:DiscordGuildMember, permissionFlags:number, discordPermissions?:DiscordPermissionResolvable[]):Promise<boolean>
     {
         // Back out early if we have no permissions to check
-        if (permissionFlags == 0)
+        if (permissionFlags === 0)
         {
             return true;
         }
@@ -106,7 +114,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
         if (permissionFlags & PermissionFlags.PERMISSION)
         {
-            if (discordPermissions == undefined)
+            if (discordPermissions === undefined)
             {
                 discordPermissions = [];
             }
@@ -205,6 +213,183 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         this.m_VoiceEventHandlers.delete(object);
     }
 
+    public async AddVoiceRequest(request:VoiceRequest):Promise<VoiceRequestID>
+    {
+        request.ID = this.m_NextVoiceRequestID;
+
+        if (this.IsVoiceRequestPlaying() || !request.startPlaying)
+        {
+            this.m_VoiceRequestQueue.push(request);
+            this.Logger.Debug(`Adding voice request ${request.ID} from ${request.requester} to queue. URL: ${request.url}`);
+        }
+        else
+        {
+            this.PlayVoiceRequest(request);
+        }
+
+        return this.m_NextVoiceRequestID++;
+    }
+
+    public async RemoveVoiceRequest(requestID:VoiceRequestID):Promise<void>
+    {
+        if (this.m_CurrentVoiceRequest === undefined || this.m_CurrentVoiceRequest.ID !== requestID)
+        {
+            const index:number = this.m_VoiceRequestQueue.findIndex((value:VoiceRequest):boolean => 
+            {
+                return <number>value.ID === requestID;
+            });
+
+            if (index !== -1)
+            {
+                const oldRequest:VoiceRequest = this.m_VoiceRequestQueue[index];
+                this.m_VoiceRequestQueue.splice(index, 1);
+                this.Logger.Debug(`Voice request ${requestID} from ${oldRequest.requester} has been removed from the queue. URL: ${oldRequest.url}`);
+            }
+            else
+            {
+                this.Logger.Warning(`You can't remove voice request ${requestID} because it doesn't exist.`);
+            }
+        }
+        else
+        {
+            const forceStop:boolean = false;
+            this.StopCurrentVoiceRequest(forceStop);
+        }
+    }
+
+    public async PauseCurrentVoiceRequest():Promise<void>
+    {
+        if (!this.IsInVoiceChannel())
+        {
+            this.Logger.Error(`You can't pause a voice request if you aren't in a voice channel`);
+            return;
+        }
+
+        if (this.m_CurrentVoiceRequest === undefined)
+        {
+            this.Logger.Error(`You can't pause a voice request if you don't have one`);
+            return;
+        }
+
+        if (this.m_CurrentVoiceRequest.isPaused)
+        {
+            this.Logger.Warning(`Trying to pause an already paused voice request`);
+            return;
+        }
+
+        (<DiscordVoiceConnection>this.m_VoiceConnection).dispatcher.pause();
+        this.m_CurrentVoiceRequest.isPaused = true;
+        this.Logger.Debug(`Pausing voice request ${this.m_CurrentVoiceRequest.ID} from ${this.m_CurrentVoiceRequest.requester.username} URL: ${this.m_CurrentVoiceRequest.url}`)
+
+        this.m_VoiceEventHandlers.forEach(async (eventHandler:VoiceEventHandler) =>
+        {
+            await eventHandler.OnVoiceRequestPaused(<VoiceRequest>this.m_CurrentVoiceRequest);
+        });
+    }
+
+    public async ResumeCurrentVoiceRequest():Promise<void>
+    {
+        if (!this.IsInVoiceChannel())
+        {
+            this.Logger.Error(`You can't pause a voice request if you aren't in a voice channel`);
+            return;
+        }
+
+        if (this.m_CurrentVoiceRequest === undefined)
+        {
+            this.Logger.Error(`You can't resume a voice request if you don't have one`);
+            return;
+        }
+
+        if (!this.m_CurrentVoiceRequest.isPaused)
+        {
+            this.Logger.Warning(`Trying to resume an already playing voice request`);
+            return;
+        }
+
+        (<DiscordVoiceConnection>this.m_VoiceConnection).dispatcher.resume();
+        this.m_CurrentVoiceRequest.isPaused = false;
+        this.Logger.Debug(`Resuming voice request ${this.m_CurrentVoiceRequest.ID} from ${this.m_CurrentVoiceRequest.requester.username} URL: ${this.m_CurrentVoiceRequest.url}`)
+
+        this.m_VoiceEventHandlers.forEach(async (eventHandler:VoiceEventHandler) =>
+        {
+            await eventHandler.OnVoiceRequestResumed(<VoiceRequest>this.m_CurrentVoiceRequest);
+        });
+    }
+
+    public async PlayVoiceRequests():Promise<void>
+    {
+        if (!this.HasVoiceRequest())
+        {
+            this.Logger.Warning(`You can't play voice requests if you don't have any.`);
+            return;
+        }
+
+        if (!this.IsInVoiceChannel())
+        {
+            this.Logger.Warning(`You can't play voice requests if you aren't in a voice channel.`);
+            return;
+        }
+
+        if (this.m_CurrentVoiceRequest === undefined)
+        {
+            this.PlayVoiceRequest(<VoiceRequest>this.m_VoiceRequestQueue.shift());
+        }
+        else
+        {
+            this.Logger.Warning(`A voice request is already playing.`);
+        }
+    }
+
+    public async StopAndClearVoiceRequests():Promise<void>
+    {
+        if (this.IsVoiceRequestPlaying())
+        {
+            const forceStop:boolean = true;
+            this.StopCurrentVoiceRequest(forceStop);
+        }
+        else
+        {
+            this.Logger.Debug(`There is no current voice request to stop.`);
+        }
+
+        if (this.HasVoiceRequest())
+        {
+            this.Logger.Debug(`Clearing ${this.m_VoiceRequestQueue.length} voice requests.`);
+            this.m_VoiceRequestQueue.splice(0, this.m_VoiceRequestQueue.length);
+
+            this.Logger.Debug(`Voice request queue finished.`);
+            this.m_VoiceEventHandlers.forEach(async (eventHandler: VoiceEventHandler) =>
+            {
+                await eventHandler.OnVoiceRequestQueueFinished();
+            });
+        }
+        else
+        {
+            this.Logger.Debug(`You can't clear voice requests if you don't have any.`);
+        }
+    }
+
+    public IsVoiceRequestPlaying():boolean
+    {
+        return this.m_CurrentVoiceRequest !== undefined;
+    }
+
+    public IsVoiceRequestPaused():boolean
+    {
+        return this.IsVoiceRequestPlaying() ? <boolean>(<VoiceRequest>this.m_CurrentVoiceRequest).isPaused : false;
+    }
+
+    public GetCurrentVoiceRequestID():VoiceRequestID
+    {
+        return this.IsVoiceRequestPlaying() ? <VoiceRequestID>(<VoiceRequest>this.m_CurrentVoiceRequest).ID : -1;
+    }
+
+    public HasVoiceRequest(): boolean
+    {
+        return this.m_VoiceRequestQueue.length > 0;
+    }
+
     ///////////////////////////////////////////////////////////
     /// EXTENDED BOT API
     ///////////////////////////////////////////////////////////
@@ -240,7 +425,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
     public async GetRegisteredRoles(guild:DiscordGuild):Promise<DiscordRole[]>
     {
-        if (!BotConfig.registeredRoles || (<DiscordSnowflake[]>BotConfig.registeredRoles).length == 0)
+        if (!BotConfig.registeredRoles || (<DiscordSnowflake[]>BotConfig.registeredRoles).length === 0)
         {
             return [];
         }
@@ -265,7 +450,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
     public async GetRegisteredUsers(guild:DiscordGuild):Promise<DiscordGuildMember[]>
     {
-        if (!BotConfig.registeredUsers || (<any[]>BotConfig.registeredUsers).length == 0)
+        if (!BotConfig.registeredUsers || (<any[]>BotConfig.registeredUsers).length === 0)
         {
             return [];
         }
@@ -324,7 +509,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
     public async JoinVoiceChannel(channel:DiscordVoiceChannel):Promise<void>
     {
-        if (this.m_VoiceConnection == undefined)
+        if (this.m_VoiceConnection === undefined)
         {
             this.m_VoiceConnection = await channel.join();
         }
@@ -342,16 +527,21 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
         this.m_VoiceEventHandlers.forEach(async (eventHandler:VoiceEventHandler)=>
         {
-            await eventHandler.HandleJoinVoiceChannel();
+            await eventHandler.OnJoinVoiceChannel();
         });
     }
 
     public async LeaveVoiceChannel():Promise<void>
     {
-        if (this.m_VoiceConnection == undefined)
+        if (this.m_VoiceConnection === undefined)
         {
             this.Logger.Error('You cannot leave a voice channel when you are not in one.')
             return;
+        }
+
+        if (this.IsVoiceRequestPlaying() || this.HasVoiceRequest())
+        {
+            await this.StopAndClearVoiceRequests();
         }
 
         this.m_VoiceConnection.disconnect();
@@ -359,10 +549,8 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
         this.m_VoiceEventHandlers.forEach(async (eventHandler: VoiceEventHandler) =>
         {
-            await eventHandler.HandleLeaveVoiceChannel();
+            await eventHandler.OnLeaveVoiceChannel();
         });
-
-        // TODO: add stop "sound queue" events
     }
 
     public async RegisterRole(role:DiscordRole):Promise<void>
@@ -412,7 +600,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         }
 
         let index:number = (<string[]>BotConfig.disabledPlugins).indexOf(name);
-        if (index == -1)
+        if (index === -1)
         {
             this.Logger.Error(`You can't enable plugin ${name} in the config because it is not there.`);
             return;
@@ -445,7 +633,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         }
 
         let index:number = (<DiscordSnowflake[]>BotConfig.registeredRoles).indexOf(role.id);
-        if (index == -1)
+        if (index === -1)
         {
             this.Logger.Error(`You can't unregister role ${role.name} in the config because it is not there.`);
             return;
@@ -472,7 +660,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         }
 
         let index:number = (<any[]>BotConfig.registeredUsers).indexOf({ guild:user.guild.id, user:user.id });
-        if (index == -1)
+        if (index === -1)
         {
             this.Logger.Error(`You can't unregister user ${user.displayName} in the config because it is not there.`);
             return;
@@ -495,7 +683,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     ///////////////////////////////////////////////////////////
 
     @ClientEvent('ready')
-    protected async HandleReady():Promise<void>
+    protected async OnReady():Promise<void>
     {
         if (this.m_IsInitialized)
             return;
@@ -537,18 +725,120 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
     }
 
     @ClientEvent('message')
-    protected async HandleMessage(message:DiscordMessage):Promise<void>
+    protected async OnMessageReceived(message:DiscordMessage):Promise<void>
     {
-        if (message.author == this.user || message.system || !this.m_IsInitialized || message.author.bot)
+        if (message.author === this.user || message.system || !this.m_IsInitialized || message.author.bot)
             return;
 
         const result:[ExecuteCommandResult, CommandError] = await this.TryExecuteCommand(message);
-        this.DisplayError(message.channel, result[1]);
+        await this.DisplayError(message.channel, result[1]);
     }
 
     ///////////////////////////////////////////////////////////
     /// OTHER
     ///////////////////////////////////////////////////////////
+
+    private PlayVoiceRequest(request:VoiceRequest):void
+    {
+        if (!this.IsInVoiceChannel())
+        {
+            this.Logger.Error(`You can't play a voice request if you aren't in a voice channel`);
+            return;
+        }
+
+        const PlayStream:(stream:Readable)=>void = (stream:Readable) => 
+        {
+            (<DiscordVoiceConnection>this.m_VoiceConnection).playStream(stream)
+            .on('error', (error:Error) =>
+            {
+                this.Logger.Error(`Voice request ${request.ID} from ${request.requester.username} has failed with an error. ${error.message}`);
+                this.PlayNextVoiceRequest();
+            })
+            .on('end', (reason:string) =>
+            {
+                this.Logger.Debug(`Voice request ${request.ID} from ${request.requester.username} has finished. URL: ${request.url}`)
+
+                if (reason !== 'stop')
+                {
+                    this.PlayNextVoiceRequest();
+                }
+            });
+        };
+
+        if (request.stream !== undefined)
+        {
+            PlayStream(request.stream);
+        }
+        else
+        {
+            request.stream = YoutubeDownloader(request.url, { quality:'highestaudio', filter:'audioonly' });
+            PlayStream(<Readable>request.stream);
+        }
+
+        request.isPaused = false;
+        this.m_CurrentVoiceRequest = request;
+        this.Logger.Debug(`Playing voice request ${request.ID} from ${request.requester.username} URL: ${request.url}`)
+
+        this.m_VoiceEventHandlers.forEach(async (eventHandler: VoiceEventHandler) =>
+        {
+            await eventHandler.OnVoiceRequestStarted(request);
+        });
+    }
+
+    private PlayNextVoiceRequest():void
+    {
+        if (this.IsVoiceRequestPlaying())
+        {
+            const oldRequest:VoiceRequest = <VoiceRequest>this.m_CurrentVoiceRequest;
+            this.m_CurrentVoiceRequest = undefined;
+            this.Logger.Debug(`Cleaning up voice request ${oldRequest.ID} from ${oldRequest.requester.username} URL: ${oldRequest.url}`)
+
+            this.m_VoiceEventHandlers.forEach(async (eventHandler:VoiceEventHandler) => 
+            {
+                await eventHandler.OnVoiceRequestFinished(oldRequest);
+            });
+        }
+        
+        if (this.m_VoiceRequestQueue.length > 0)
+        {
+            this.PlayVoiceRequest(<VoiceRequest>this.m_VoiceRequestQueue.shift());
+        }
+        else
+        {
+            this.Logger.Debug(`Voice request queue finished.`);
+            this.m_VoiceEventHandlers.forEach(async (eventHandler: VoiceEventHandler) =>
+            {
+                await eventHandler.OnVoiceRequestQueueFinished();
+            });
+        }
+    }
+
+    private StopCurrentVoiceRequest(forceStop:boolean):void
+    {
+        if (!this.IsInVoiceChannel())
+        {
+            this.Logger.Error(`You can't stop a voice request if you aren't in a voice channel`);
+            return;
+        }
+
+        if (this.m_CurrentVoiceRequest === undefined)
+        {
+            this.Logger.Error(`You can't stop a voice request if you don't have one`);
+            return;
+        }
+
+        const oldRequest:VoiceRequest = this.m_CurrentVoiceRequest;
+        this.m_CurrentVoiceRequest = undefined;
+        const stopType:string = forceStop ? 'Force stopping' : 'Stopping'
+        this.Logger.Debug(`${stopType} voice request ${oldRequest.ID} from ${oldRequest.requester.username} URL: ${oldRequest.url}`)
+
+        this.m_VoiceEventHandlers.forEach(async (eventHandler: VoiceEventHandler) =>
+        {
+            await eventHandler.OnVoiceRequestFinished(oldRequest);
+        });
+
+        (<DiscordVoiceConnection>this.m_VoiceConnection).dispatcher.end(forceStop ? 'stop' : '');
+    }
 
     private GeneratePluginCommandCollisions():void
     {
@@ -561,7 +851,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
             for (let j in plugins)
             {
-                if (i == j)
+                if (i === j)
                 {
                     continue;
                 }
@@ -614,19 +904,19 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
         const parsedCommand:ParsedCommandInfo | undefined = InputParserUtils.ParseTextForCommandInfo(message.content, this.Logger);
 
-        if (parsedCommand == undefined)
+        if (parsedCommand === undefined)
         {
             return [ExecuteCommandResult.STOP, CommandError.New(CommandErrorCode.NOT_A_COMMAND)];
         }
 
         const botResult:[ExecuteCommandResult, CommandError] = await this.TryExecuteBotCommand(messageWrapper, parsedCommand);
-        this.DisplayError(message.channel, botResult[1], this.GetErrorContext(botResult[1], parsedCommand));
+        await this.DisplayError(message.channel, botResult[1], this.GetErrorContext(botResult[1], parsedCommand));
 
         // It wasn't a bot command, so lets find out if we have a plugin command
-        if (botResult[0] == ExecuteCommandResult.CONTINUE)
+        if (botResult[0] === ExecuteCommandResult.CONTINUE)
         {
             const pluginResult:[ExecuteCommandResult, CommandError] = await this.TryExecutePluginCommand(messageWrapper, parsedCommand);
-            this.DisplayError(message.channel, pluginResult[1], this.GetErrorContext(pluginResult[1], parsedCommand));
+            await this.DisplayError(message.channel, pluginResult[1], this.GetErrorContext(pluginResult[1], parsedCommand));
         }
 
         return [ExecuteCommandResult.STOP, CommandError.Success()];
@@ -684,7 +974,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
         const AddContext = (name:string, value:any):any =>
         {
-            if (context == undefined)
+            if (context === undefined)
                 context = {};
 
             if (errorContext[name])
@@ -744,7 +1034,7 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
         return context;
     }
 
-    private DisplayError(channel:DiscordChannel, error:CommandError, context?:any):void
+    private async DisplayError(channel:DiscordChannel, error:CommandError, context?:any):Promise<void>
     {
         let message:string = '';
         const errorCode:CommandErrorCode = error.ErrorCode;
@@ -755,31 +1045,31 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
             message = <string>error.CustomMessage;
             break;
         case CommandErrorCode.INCORRECT_BOT_COMMAND_USAGE:
-            if (context == undefined)
+            if (context === undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
             message = `Incorrect usage of command \`${context.command}\`. Please see the usage to learn how to properly use this command.\nJust Type: \`!usage ${context.command}\``;
             break;
         case CommandErrorCode.UNRECOGNIZED_BOT_COMMAND:
-            if (context == undefined)
+            if (context === undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
             message = `\`${context.command}\` is not a recognized bot command. For help, just type \`!help bot\``;
             break;
         case CommandErrorCode.INCORRECT_PLUGIN_COMMAND_USAGE:
-            if (context == undefined)
+            if (context === undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
             message = `Incorrect usage of command \`${context.command}\`. Please see the usage to learn how to properly use this command.\nJust Type: \`!usage ${context.tag} ${context.command}\``;
             break;
         case CommandErrorCode.UNRECOGNIZED_PLUGIN_COMMAND:
-            if (context == undefined)
+            if (context === undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
             message = `\`${context.command}\` is not a recognized plugin command. For help, just type \`!help ${context.tag}\``;
             break;
         case CommandErrorCode.PLUGIN_DISABLED:
-            if (context == undefined)
+            if (context === undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
             message = `This plugin is currently disabled. To use commands for this plugin, please enable it first. To enable it, just type \`!enableplugin ${context.tag}\``;
@@ -794,25 +1084,25 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
             message = `You can only execute this command from a guild.`;
             break;
         case CommandErrorCode.PLUGIN_COMMAND_COLLISION:
-            if (context == undefined)
+            if (context === undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
             message = `There is more than one plugin with the tag alias \`${context.tag}\` and command \`${context.command}\` combination. Please use the tag to execute this command.`;
             break;
         case CommandErrorCode.PLUGIN_TAG_COLLISION:
-            if (context == undefined)
+            if (context === undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
             message = `There is more than one plugin with the tag alias \`${context.tag}\`. Please use the tag instead.`;
             break;
         case CommandErrorCode.UNRECOGNIZED_PLUGIN_TAG:
-            if (context == undefined)
+            if (context === undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
             message = `There is no plugin with tag or tag alias \`${context.tag}\`. For a list of plugins type \`!help plugins\``;
             break;
         case CommandErrorCode.INVALID_ARGUMENT_TYPE:
-            if (context == undefined)
+            if (context === undefined)
                 this.Logger.Error(`No context was provided for Error ${errorCode}`);
 
             message = `Invalid type for argument \`${context.arg}\`. Expected a \`${context.type}\` but you gave it \`${context.value}\`.`;
@@ -820,11 +1110,11 @@ class NyxBot extends Discord.Client implements ExtendedBotAPI, EventListener, Lo
 
         if (message !== '')
         {
-            this.SendMessage(channel, message);
+            await this.SendMessage(channel, message);
         }
     }
 };
 
-LoggerUtils.SetVerboseLogging(options.verbose != undefined ? options.verbose : false);
+LoggerUtils.SetVerboseLogging(options.verbose !== undefined ? options.verbose : false);
 let bot:NyxBot = new NyxBot();
 bot.login(BotConfig.token);
